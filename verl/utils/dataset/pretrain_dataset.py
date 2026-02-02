@@ -146,7 +146,7 @@ class PretrainDataset(Dataset):
         logger.debug(f"text: {text}")
 
         # 1. tokenize each message
-        input_ids = self.tokenizer.encode([text], add_special_tokens=False, return_tensors="pt")[0]
+        input_ids = self.tokenizer(text, add_special_tokens=False, return_tensors="pt")["input_ids"][0]
         attention_mask = torch.ones_like(input_ids)
         loss_mask = torch.ones_like(input_ids)
         multi_modal_inputs = {}
