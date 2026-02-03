@@ -470,7 +470,7 @@ def create_sft_dataset(data_paths, data_config, tokenizer, processor, max_sample
         from verl.utils.import_utils import load_extern_object
 
         dataset_cls = load_extern_object(data_config.custom_cls.path, data_config.custom_cls.name)
-    elif data_config.pretrain:
+    elif getattr(data_config, 'pretrain', None):
         dataset_cls = PretrainDataset
     else:
         # Default to multi-turn dataset
