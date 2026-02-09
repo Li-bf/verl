@@ -289,7 +289,10 @@ class MultiTurnSFTDataset(Dataset):
 
     def __getitem__(self, item):
         row_dict: dict = self.dataframe.iloc[item].to_dict()
-        messages = self._build_messages(row_dict)
+        # messages = self._build_messages(row_dict)
+        # 修复bug：输入多个不同schema的parquet时，存在list被加载成np.ndarray的情况，导致apply_chat_template报错
+        # 注意这里没有_build_messages，多模态输入目前会有问题
+        messages = self.messages[item]
         tools = self.tools[item] if self.tools is not None else None
         enable_thinking = (
             self.enable_thinking[item] if self.enable_thinking is not None else self.enable_thinking_default
