@@ -471,7 +471,10 @@ def create_sft_dataset(data_paths, data_config, tokenizer, processor, max_sample
 
         dataset_cls = load_extern_object(data_config.custom_cls.path, data_config.custom_cls.name)
     elif getattr(data_config, 'pretrain', None):
-        dataset_cls = PretrainDataset
+        if getattr(data_config, 'lazy_load', False):
+            dataset_cls = PretrainDatasetRowGroupLazy
+        else:
+            dataset_cls = PretrainDataset
     else:
         # Default to multi-turn dataset
         dataset_cls = MultiTurnSFTDataset

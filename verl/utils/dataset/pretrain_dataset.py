@@ -20,10 +20,12 @@ import logging
 import os
 import re
 from functools import wraps
-from typing import Any, Optional
+from collections import OrderedDict
+from typing import Optional, Union, List, Tuple, Dict, Any
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig, ListConfig
@@ -230,3 +232,177 @@ class PretrainDataset(Dataset):
         else:
             raise ValueError(f"Unknown pad mode {self.pad_mode}")
 
+
+class RowGroupLRUCache:
+    def __init__(self, capacity: int = 8):
+        self.capacity = max(int(capacity), 0)
+        self._od = OrderedDict()
+
+    def get(self, key):
+        if self.capacity <= 0:
+            return None
+        if key not in self._od:
+            return None
+        self._od.move_to_end(key)
+        return self._od[key]
+
+    def put(self, key, value):
+        if self.capacity <= 0:
+            return
+        if key in self._od:
+            self._od.move_to_end(key)
+        self._od[key] = value
+        if len(self._od) > self.capacity:
+            self._od.popitem(last=False)
+
+class PretrainDatasetRowGroupLazy(Dataset):
+    "通过(file_id, row_group_id, row_in_group)懒加载数据, 避免全量读入oom"
+    def __init__(
+        self,
+        parquet_files: Union[str, List[str]],
+        tokenizer,
+        config: Optional[dict] = None,
+        processor=None,
+    ):
+        self.config = config or {}
+        self.text_key = self.config.get("text_key", "text")
+        self.max_length = int(self.config.get("max_length", 1024))
+        self.pad_mode = self.config.get("pad_mode", DatasetPadMode.RIGHT)
+        self.truncation = self.config.get("truncation", "error")
+        assert self.pad_mode in [DatasetPadMode.RIGHT, DatasetPadMode.NO_PADDING]
+        assert self.truncation in ["error", "left", "right"]
+
+        self.tokenizer = tokenizer
+        self.processor = processor
+
+        if isinstance(parquet_files, str):
+            parquet_files = [parquet_files]
+        self.parquet_files = list(parquet_files)
+
+        self._pfs: List[pq.ParquetFile] = [pq.ParquetFile(p) for p in self.parquet_files]
+
+        self.per_file_rg_ends: List[List[int]] = []
+        self.file_ends: List[int] = []
+        for pf in self._pfs:
+            ends = []
+            acc = 0
+            for rg in range(pf.num_row_groups):
+                acc += pf.metadata.row_group(rg).num_rows
+                ends.append(acc)
+            self.per_file_rg_ends.append(ends)
+            self.file_ends.append(acc)
+
+        for i in range(1, len(self.file_ends)):
+            self.file_ends[i] += self.file_ends[i - 1]
+        self.total_rows = self.file_ends[-1]
+
+        cache_cap = int(self.config.get("cache_rowgroups", 4))
+        self.rg_cache = RowGroupLRUCache(capacity=cache_cap)
+
+        self.columns = self.config.get("columns", None)
+        if self.columns is None:
+            self.columns = [self.text_key]
+        else:
+            if self.text_key not in self.columns:
+                self.columns = list(self.columns) + [self.text_key]
+
+    def __len__(self):
+        return self.total_rows
+
+    @staticmethod
+    def _binary_search(a: List[int], x: int) -> int:
+        l, r = 0, len(a)
+        while l < r:
+            mid = (l + r) // 2
+            if x < a[mid]:
+                r = mid
+            else:
+                l = mid + 1
+        return l
+
+    def _locate_file(self, global_idx: int) -> Tuple[int, int]:
+        if global_idx < 0:
+            global_idx += self.total_rows
+        if global_idx < 0 or global_idx >= self.total_rows:
+            raise IndexError(f"Index {global_idx} out of range (len={self.total_rows})")
+
+        file_id = self._binary_search(self.file_ends, global_idx)
+        prev_end = 0 if file_id == 0 else self.file_ends[file_id - 1]
+        local_idx = global_idx - prev_end
+        return file_id, local_idx
+
+    def _locate_row_group(self, file_id: int, local_idx: int) -> Tuple[int, int]:
+        rg_ends = self.per_file_rg_ends[file_id]
+        rg_id = self._binary_search(rg_ends, local_idx)
+        prev_end = 0 if rg_id == 0 else rg_ends[rg_id - 1]
+        row_in_group = local_idx - prev_end
+        return rg_id, row_in_group
+
+    def _load_texts_for_row_group(self, file_id: int, rg_id: int) -> List[str]:
+        key = (file_id, rg_id, self.text_key)
+        cached = self.rg_cache.get(key)
+        if cached is not None:
+            return cached
+
+        pf = self._pfs[file_id]
+        table = pf.read_row_group(rg_id, columns=[self.text_key])
+        texts = table[self.text_key].to_pylist()
+
+        self.rg_cache.put(key, texts)
+        return texts
+
+    def _encode_text(self, text: str) -> Dict[str, torch.Tensor]:
+        input_ids = self.tokenizer(text, add_special_tokens=False, return_tensors="pt")["input_ids"][0]
+        attention_mask = torch.ones_like(input_ids)
+        loss_mask = torch.ones_like(input_ids)
+        position_ids = torch.arange(input_ids.shape[0], dtype=torch.long)
+
+        # truncation
+        seq_len = input_ids.shape[0]
+        if seq_len > self.max_length:
+            if self.truncation == "left":
+                input_ids = input_ids[-self.max_length:]
+                attention_mask = attention_mask[-self.max_length:]
+                loss_mask = loss_mask[-self.max_length:]
+                position_ids = position_ids[-self.max_length:]
+            elif self.truncation == "right":
+                input_ids = input_ids[:self.max_length]
+                attention_mask = attention_mask[:self.max_length]
+                loss_mask = loss_mask[:self.max_length]
+                position_ids = position_ids[:self.max_length]
+            elif self.truncation == "error":
+                raise ValueError(f"sequence_length={seq_len} > max_length={self.max_length}")
+
+        # padding
+        if self.pad_mode == DatasetPadMode.RIGHT:
+            seq_len = input_ids.shape[0]
+            if seq_len < self.max_length:
+                pad_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else 0
+                pad_len = self.max_length - seq_len
+                input_ids = torch.cat([input_ids, torch.full((pad_len,), pad_id, dtype=input_ids.dtype)])
+                attention_mask = torch.cat([attention_mask, torch.zeros((pad_len,), dtype=attention_mask.dtype)])
+                loss_mask = torch.cat([loss_mask, torch.zeros((pad_len,), dtype=loss_mask.dtype)])
+                position_ids = F.pad(position_ids, (0, pad_len), value=0)
+
+            return {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "position_ids": position_ids,
+                "loss_mask": loss_mask,
+            }
+
+        # no_padding
+        return {
+            "input_ids": input_ids,
+            "position_ids": position_ids,
+            "loss_mask": loss_mask,
+        }
+
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        file_id, local_idx = self._locate_file(idx)
+        rg_id, row_in_group = self._locate_row_group(file_id, local_idx)
+
+        texts = self._load_texts_for_row_group(file_id, rg_id)
+        text = texts[row_in_group]
+
+        return self._encode_text(text)
