@@ -263,21 +263,31 @@ class PretrainDatasetRowGroupLazy(Dataset):
         tokenizer,
         config: Optional[dict] = None,
         processor=None,
+        max_samples: int = -1,
     ):
-        self.config = config or {}
-        self.text_key = self.config.get("text_key", "text")
-        self.max_length = int(self.config.get("max_length", 1024))
-        self.pad_mode = self.config.get("pad_mode", DatasetPadMode.RIGHT)
-        self.truncation = self.config.get("truncation", "error")
+        config = config or {}
+        self.config = config
+        self.pad_mode = config.get("pad_mode", "right")
+        self.truncation = config.get("truncation", "error")
+        # for right padding
+        self.max_length = config.get("max_length", 1024)
+        self.text_key = config.get("text_key", "text")
+        self.shuffle = config.get("shuffle", False)
+        self.seed = config.get("seed")
+        self.max_samples = max_samples
+        self.ignore_input_ids_mismatch = config.get("ignore_input_ids_mismatch", False)
+
         assert self.pad_mode in [DatasetPadMode.RIGHT, DatasetPadMode.NO_PADDING]
         assert self.truncation in ["error", "left", "right"]
 
-        self.tokenizer = tokenizer
-        self.processor = processor
-
-        if isinstance(parquet_files, str):
+        if not isinstance(parquet_files, list | ListConfig):
             parquet_files = [parquet_files]
-        self.parquet_files = list(parquet_files)
+
+        self.parquet_files = parquet_files
+        if isinstance(tokenizer, str):
+            tokenizer = hf_tokenizer(tokenizer)
+        self.tokenizer: PreTrainedTokenizer = tokenizer
+        self.processor = processor
 
         self._pfs: List[pq.ParquetFile] = [pq.ParquetFile(p) for p in self.parquet_files]
 
