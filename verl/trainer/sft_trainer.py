@@ -35,7 +35,7 @@ from verl.utils import tensordict_utils as tu
 from verl.utils.checkpoint import CheckpointHandler
 from verl.utils.dataset.dataset_utils import SFTTensorCollator
 from verl.utils.dataset.multiturn_sft_dataset import MultiTurnSFTDataset
-from verl.utils.dataset.pretrain_dataset import PretrainDataset
+from verl.utils.dataset.pretrain_dataset import PretrainDataset, PretrainDatasetRowGroupLazy
 from verl.utils.device import auto_set_device, get_device_name
 from verl.utils.distributed import destroy_global_process_group
 from verl.utils.logger import log_with_rank
