@@ -27,6 +27,7 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig, ListConfig
 from torch.utils.data import Dataset
+from tqdm import tqdm
 from transformers import PreTrainedTokenizer, ProcessorMixin
 
 from verl.models.transformers.qwen2_vl import get_rope_index
@@ -360,30 +361,35 @@ class PretrainDatasetRowGroupLazy(Dataset):
         max_len_plus = int(self.max_length) + 1
 
         valid = []
+        total = int(self.total_rows)
 
-        for _, _, texts, global_start in self._iter_row_groups_texts():
-            texts = [("" if t is None else str(t)) for t in texts]
-            for offset in range(0, len(texts), batch_size):
-                chunk = texts[offset : offset + batch_size]
+        desc = f"Filter overlong (max_len={self.max_length})"
+        with tqdm(total=total, desc=desc, unit="rows", dynamic_ncols=True) as pbar:
+            for _, _, texts, global_start in self._iter_row_groups_texts():
+                texts = [("" if t is None else str(t)) for t in texts]
 
-                enc = self.tokenizer(
-                    chunk,
-                    add_special_tokens=False,
-                    truncation=True,
-                    max_length=max_len_plus,
-                    padding=False,
-                    return_attention_mask=False,
-                )
+                for offset in range(0, len(texts), batch_size):
+                    chunk = texts[offset : offset + batch_size]
 
-                lengths = [len(x) for x in enc["input_ids"]]
-                for i, L in enumerate(lengths):
-                    if L <= self.max_length:
-                        valid.append(global_start + offset + i)
+                    enc = self.tokenizer(
+                        chunk,
+                        add_special_tokens=False,
+                        truncation=True,
+                        max_length=max_len_plus,
+                        padding=False,
+                        return_attention_mask=False,
+                    )
 
+                    lengths = [len(x) for x in enc["input_ids"]]
+                    for i, L in enumerate(lengths):
+                        if L <= self.max_length:
+                            valid.append(global_start + offset + i)
+
+                    pbar.update(len(chunk))
+                    
         valid = np.asarray(valid, dtype=np.int64)
         print(f"filter dataset len: {len(valid)} / {self.total_rows}")
         return valid
-
 
     def _setup_index_mapping(self):
         if self.filter_overlong_prompts:
