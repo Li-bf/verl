@@ -122,7 +122,7 @@ class PretrainDataset(Dataset):
             dataframes.append(dataframe)
         self.dataframe = pd.concat(dataframes)
         self.dataframe = self.maybe_filter_out_long_prompts(self.dataframe)
-        
+
         total = len(self.dataframe)
         print(f"dataset len: {len(self.dataframe)}")
 
@@ -290,7 +290,7 @@ class PretrainDataset(Dataset):
                     except Exception:
                         print("Error processing one of the samples, skipping...")
                         traceback.print_exc()
-                        return self.max_prompt_length + 1
+                        return self.max_length + 1
 
             else:
 
@@ -306,12 +306,12 @@ class PretrainDataset(Dataset):
                     except Exception:
                         print("Error processing one of the samples, skipping...")
                         traceback.print_exc()
-                        return self.max_prompt_length + 1
+                        return self.max_length + 1
 
             dataframe = dataframe.filter(
-                lambda doc: doc2len(doc) <= self.max_prompt_length,
+                lambda doc: doc2len(doc) <= self.max_length,
                 num_proc=self.num_workers,
-                desc=f"Filtering prompts longer than {self.max_prompt_length} tokens",
+                desc=f"Filtering prompts longer than {self.max_length} tokens",
             )
 
             print(f"filter dataset len: {len(dataframe)}")

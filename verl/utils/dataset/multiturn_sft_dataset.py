@@ -513,7 +513,7 @@ class MultiTurnSFTDataset(Dataset):
                     except Exception:
                         print("Error processing one of the samples, skipping...")
                         traceback.print_exc()
-                        return self.max_prompt_length + 1
+                        return self.max_length + 1
 
             else:
 
@@ -529,12 +529,12 @@ class MultiTurnSFTDataset(Dataset):
                     except Exception:
                         print("Error processing one of the samples, skipping...")
                         traceback.print_exc()
-                        return self.max_prompt_length + 1
+                        return self.max_length + 1
 
             dataframe = dataframe.filter(
-                lambda doc: doc2len(doc) <= self.max_prompt_length,
+                lambda doc: doc2len(doc) <= self.max_length,
                 num_proc=self.num_workers,
-                desc=f"Filtering prompts longer than {self.max_prompt_length} tokens",
+                desc=f"Filtering prompts longer than {self.max_length} tokens",
             )
 
             print(f"filter dataset len: {len(dataframe)}")
