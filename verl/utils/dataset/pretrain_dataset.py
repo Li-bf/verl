@@ -234,7 +234,7 @@ class PretrainDataset(Dataset):
 
 
 class RowGroupLRUCache:
-    def __init__(self, capacity: int = 8):
+    def __init__(self, capacity: int = 4):
         self.capacity = max(int(capacity), 0)
         self._od = OrderedDict()
 
@@ -277,7 +277,9 @@ class PretrainDatasetRowGroupLazy(Dataset):
         self.max_samples = max_samples
         self.ignore_input_ids_mismatch = config.get("ignore_input_ids_mismatch", False)
 
-        assert self.pad_mode in [DatasetPadMode.RIGHT, DatasetPadMode.NO_PADDING]
+        assert self.pad_mode in ["right", "no_padding"], (
+            f"Expect pad_mode to be 'right' or 'no_padding'. Got {self.pad_mode}"
+        )
         assert self.truncation in ["error", "left", "right"]
 
         if not isinstance(parquet_files, list | ListConfig):
@@ -309,15 +311,33 @@ class PretrainDatasetRowGroupLazy(Dataset):
         cache_cap = int(self.config.get("cache_rowgroups", 4))
         self.rg_cache = RowGroupLRUCache(capacity=cache_cap)
 
-        self.columns = self.config.get("columns", None)
-        if self.columns is None:
-            self.columns = [self.text_key]
+        self._setup_index_mapping()
+
+    def _setup_index_mapping(self):
+        N = int(self.total_rows)
+        rng = np.random.default_rng(self.seed) if self.seed is not None else np.random.default_rng()
+
+        if self.shuffle:
+            self.index_map = rng.permutation(N).astype(np.int64)
         else:
-            if self.text_key not in self.columns:
-                self.columns = list(self.columns) + [self.text_key]
+            self.index_map = np.arange(N, dtype=np.int64)
+
+        max_samples = int(self.max_samples) if self.max_samples is not None else -1
+        if max_samples > 0:
+            self.effective_len = min(max_samples, N)
+        else:
+            self.effective_len = N
 
     def __len__(self):
-        return self.total_rows
+        return int(getattr(self, "effective_len", self.total_rows))
+
+    def _global_index(self, idx: int) -> int:
+        if idx < 0:
+            idx += len(self)
+        if idx < 0 or idx >= len(self):
+            raise IndexError(f"Index {idx} out of range (len={len(self)})")
+        return int(self.index_map[idx])
+
 
     @staticmethod
     def _binary_search(a: List[int], x: int) -> int:
@@ -409,7 +429,8 @@ class PretrainDatasetRowGroupLazy(Dataset):
         }
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
-        file_id, local_idx = self._locate_file(idx)
+        global_idx = self._global_index(idx)
+        file_id, local_idx = self._locate_file(global_idx)
         rg_id, row_in_group = self._locate_row_group(file_id, local_idx)
 
         texts = self._load_texts_for_row_group(file_id, rg_id)
