@@ -62,12 +62,12 @@ def print_assembled_message(tokenizer, message_list, input_ids, loss_mask, attn_
 
     tokenized = tokenizer.apply_chat_template(message_list, add_generation_prompt=False, tokenize=False, tools=tools)
     sep = "\n\n"
-    str = f"tokenized entire message:\n{tokenized}"
-    str += sep
+    msg = f"tokenized entire message:\n{tokenized}"
+    msg += sep
     decoded_ids = input_ids.tolist() if hasattr(input_ids, "tolist") else input_ids
-    str += f"tokenized seperately    :\n{tokenizer.decode(decoded_ids)}"
+    msg += f"tokenized seperately    :\n{tokenizer.decode(decoded_ids)}"
 
-    logger.debug(str)
+    logger.debug(msg)
 
 
 class MultiTurnSFTDataset(Dataset):
@@ -97,6 +97,7 @@ class MultiTurnSFTDataset(Dataset):
             f"Expect pad_mode to be 'right' or 'no_padding'. Got {self.pad_mode}"
         )
         self.truncation = config.get("truncation", "error")
+        self.filter_overlong_prompts = config.get("filter_overlong_prompts", True)
         # for right padding
         self.max_length = config.get("max_length", 1024)
         # Get messages_key from the new multiturn config structure
@@ -289,9 +290,9 @@ class MultiTurnSFTDataset(Dataset):
 
     def __getitem__(self, item):
         row_dict: dict = self.dataframe.iloc[item].to_dict()
-        # messages = self._build_messages(row_dict)
         # 修复bug：输入多个不同schema的parquet时，存在list被加载成np.ndarray的情况，导致apply_chat_template报错
         # 注意这里没有_build_messages，多模态输入目前会有问题
+        # messages = self._build_messages(row_dict)
         messages = self.messages[item]
         tools = self.tools[item] if self.tools is not None else None
         enable_thinking = (
@@ -457,85 +458,52 @@ class MultiTurnSFTDataset(Dataset):
             else:
                 raise AssertionError(error_message)
 
-    def maybe_filter_out_long_prompts(self, dataframe: datasets.Dataset = None):
-        """copy from rl_dataset.py"""
-        # filter out too long prompts
-        if self.filter_overlong_prompts:
-            tokenizer = self.tokenizer
-            processor = self.processor
-            prompt_key = self.prompt_key
-            image_key = self.image_key
-            video_key = self.video_key
+    def maybe_filter_out_long_prompts(self, df: pd.DataFrame) -> pd.DataFrame:
+        if not self.filter_overlong_prompts:
+            return df
 
-            if processor is not None:
-                from verl.utils.dataset.vision_utils import process_image, process_video
+        processor = self.processor if self.processor is not None else self.tokenizer
+        tok = self.tokenizer
 
-                def doc2len(doc) -> int:
-                    try:
-                        messages = self._build_messages(doc)
-                        # pass tool schemas if available so the processor can format prompts
-                        apply_kwargs = dict(**self.apply_chat_template_kwargs)
-                        if self.tool_schemas is not None:
-                            apply_kwargs["tools"] = self.tool_schemas
+        apply_kwargs = dict(**self.apply_chat_template_kwargs)
+        os.environ.setdefault("TOKENIZERS_PARALLELISM", "true")
 
-                        raw_prompt = self.processor.apply_chat_template(
-                            messages, add_generation_prompt=True, tokenize=False, **apply_kwargs
-                        )
-                        if image_key in doc and doc[image_key]:
-                            images = [
-                                process_image(image, image_patch_size=self.image_patch_size) for image in doc[image_key]
-                            ]
-                        else:
-                            images = None
+        texts = []
+        ok = []
+        for v in df[self.messages_key].tolist():
+            try:
+                messages = convert_nested_value_to_list_recursive(v)
+                text = processor.apply_chat_template(
+                    messages,
+                    add_generation_prompt=True,
+                    tokenize=False,
+                    **apply_kwargs,
+                )
+                texts.append(text)
+                ok.append(True)
+            except Exception:
+                texts.append("")
+                ok.append(False)
 
-                        if video_key in doc and doc[video_key]:
-                            videos, video_metadata = zip(
-                                *[
-                                    process_video(
-                                        video, image_patch_size=self.image_patch_size, return_video_metadata=True
-                                    )
-                                    for video in doc[video_key]
-                                ],
-                                strict=True,
-                            )
-                            videos = list(videos)
-                            video_metadata = list(video_metadata)
-                            videos_kwargs = {"video_metadata": video_metadata, "do_sample_frames": False}
-                        else:
-                            videos = None
-                            videos_kwargs = {}
+        idx = [i for i, flag in enumerate(ok) if flag]
+        batch_texts = [texts[i] for i in idx]
 
-                        return len(
-                            processor(text=[raw_prompt], images=images, videos=videos, videos_kwargs=videos_kwargs)[
-                                "input_ids"
-                            ][0]
-                        )
-                    except Exception:
-                        print("Error processing one of the samples, skipping...")
-                        traceback.print_exc()
-                        return self.max_length + 1
+        enc = tok(
+            batch_texts,
+            add_special_tokens=False,
+            truncation=True,
+            max_length=self.max_length + 1,
+            padding=False,
+            return_attention_mask=False,
+        )
 
-            else:
+        lengths = [len(x) for x in enc["input_ids"]]
+        batch_mask = [L <= self.max_length for L in lengths]
 
-                def doc2len(doc) -> int:
-                    try:
-                        apply_kwargs = dict(**self.apply_chat_template_kwargs)
-                        if self.tool_schemas is not None:
-                            apply_kwargs["tools"] = self.tool_schemas
+        mask = [False] * len(df)
+        for j, i in enumerate(idx):
+            mask[i] = batch_mask[j]
 
-                        return len(
-                            tokenizer.apply_chat_template(doc[prompt_key], add_generation_prompt=True, **apply_kwargs)
-                        )
-                    except Exception:
-                        print("Error processing one of the samples, skipping...")
-                        traceback.print_exc()
-                        return self.max_length + 1
-
-            dataframe = dataframe.filter(
-                lambda doc: doc2len(doc) <= self.max_length,
-                num_proc=self.num_workers,
-                desc=f"Filtering prompts longer than {self.max_length} tokens",
-            )
-
-            print(f"filter dataset len: {len(dataframe)}")
-        return dataframe
+        filtered = df[mask].reset_index(drop=True)
+        print(f"filter dataset len: {len(filtered)} / {len(df)}")
+        return filtered

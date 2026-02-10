@@ -12,9 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Multi-turn SFT dataset that supports training on conversation data with multiple turns
-"""
 
 import logging
 import os
@@ -81,6 +78,7 @@ class PretrainDataset(Dataset):
             f"Expect pad_mode to be 'right' or 'no_padding'. Got {self.pad_mode}"
         )
         self.truncation = config.get("truncation", "error")
+        self.filter_overlong_prompts = config.get("filter_overlong_prompts", True)
         # for right padding
         self.max_length = config.get("max_length", 1024)
         self.text_key = config.get("text_key", "text")
@@ -233,89 +231,29 @@ class PretrainDataset(Dataset):
         else:
             raise ValueError(f"Unknown pad mode {self.pad_mode}")
 
+    def maybe_filter_out_long_prompts(self, df: pd.DataFrame) -> pd.DataFrame:
+        if not self.filter_overlong_prompts:
+            return df
 
-    def maybe_filter_out_long_prompts(self, dataframe: datasets.Dataset = None):
-        """copy from rl_dataset.py"""
-        # filter out too long prompts
-        if self.filter_overlong_prompts:
-            tokenizer = self.tokenizer
-            processor = self.processor
-            prompt_key = self.prompt_key
-            image_key = self.image_key
-            video_key = self.video_key
+        texts = df[self.text_key].astype("string").fillna("").tolist()
+        os.environ.setdefault("TOKENIZERS_PARALLELISM", "true")
+        
+        enc = self.tokenizer(
+            texts,
+            add_special_tokens=False,
+            truncation=True,
+            max_length=self.max_length + 1,
+            padding=False,
+            return_attention_mask=False,
+        )
 
-            if processor is not None:
-                from verl.utils.dataset.vision_utils import process_image, process_video
+        lengths = [len(x) for x in enc["input_ids"]]
+        mask = [L <= self.max_length for L in lengths]
 
-                def doc2len(doc) -> int:
-                    try:
-                        messages = self._build_messages(doc)
-                        # pass tool schemas if available so the processor can format prompts
-                        apply_kwargs = dict(**self.apply_chat_template_kwargs)
-                        if self.tool_schemas is not None:
-                            apply_kwargs["tools"] = self.tool_schemas
+        filtered = df[mask].reset_index(drop=True)
+        print(f"filter dataset len: {len(filtered)} / {len(df)}")
+        return filtered
 
-                        raw_prompt = self.processor.apply_chat_template(
-                            messages, add_generation_prompt=True, tokenize=False, **apply_kwargs
-                        )
-                        if image_key in doc and doc[image_key]:
-                            images = [
-                                process_image(image, image_patch_size=self.image_patch_size) for image in doc[image_key]
-                            ]
-                        else:
-                            images = None
-
-                        if video_key in doc and doc[video_key]:
-                            videos, video_metadata = zip(
-                                *[
-                                    process_video(
-                                        video, image_patch_size=self.image_patch_size, return_video_metadata=True
-                                    )
-                                    for video in doc[video_key]
-                                ],
-                                strict=True,
-                            )
-                            videos = list(videos)
-                            video_metadata = list(video_metadata)
-                            videos_kwargs = {"video_metadata": video_metadata, "do_sample_frames": False}
-                        else:
-                            videos = None
-                            videos_kwargs = {}
-
-                        return len(
-                            processor(text=[raw_prompt], images=images, videos=videos, videos_kwargs=videos_kwargs)[
-                                "input_ids"
-                            ][0]
-                        )
-                    except Exception:
-                        print("Error processing one of the samples, skipping...")
-                        traceback.print_exc()
-                        return self.max_length + 1
-
-            else:
-
-                def doc2len(doc) -> int:
-                    try:
-                        apply_kwargs = dict(**self.apply_chat_template_kwargs)
-                        if self.tool_schemas is not None:
-                            apply_kwargs["tools"] = self.tool_schemas
-
-                        return len(
-                            tokenizer.apply_chat_template(doc[prompt_key], add_generation_prompt=True, **apply_kwargs)
-                        )
-                    except Exception:
-                        print("Error processing one of the samples, skipping...")
-                        traceback.print_exc()
-                        return self.max_length + 1
-
-            dataframe = dataframe.filter(
-                lambda doc: doc2len(doc) <= self.max_length,
-                num_proc=self.num_workers,
-                desc=f"Filtering prompts longer than {self.max_length} tokens",
-            )
-
-            print(f"filter dataset len: {len(dataframe)}")
-        return dataframe
 
 class RowGroupLRUCache:
     def __init__(self, capacity: int = 4):
@@ -353,6 +291,7 @@ class PretrainDatasetRowGroupLazy(Dataset):
         self.config = config
         self.pad_mode = config.get("pad_mode", "right")
         self.truncation = config.get("truncation", "error")
+        self.filter_overlong_prompts = config.get("filter_overlong_prompts", True)
         # for right padding
         self.max_length = config.get("max_length", 1024)
         self.text_key = config.get("text_key", "text")
@@ -397,8 +336,62 @@ class PretrainDatasetRowGroupLazy(Dataset):
 
         self._setup_index_mapping()
 
+    def _iter_row_groups_texts(self):
+        """yield: (file_id, rg_id, texts_list, global_start_row)"""
+        global_base = 0
+        for file_id, pf in enumerate(self._pfs):
+            rg_ends = self.per_file_rg_ends[file_id]
+            prev_end = 0
+            for rg_id, rg_end in enumerate(rg_ends):
+                # 该 row group 在本文件内的起始行
+                local_start = prev_end
+                prev_end = rg_end
+
+                table = pf.read_row_group(rg_id, columns=[self.text_key])
+                texts = table[self.text_key].to_pylist()
+                # row group 在全局的起始行
+                global_start = global_base + local_start
+                yield file_id, rg_id, texts, global_start
+
+            global_base += self.file_ends[file_id] - (self.file_ends[file_id - 1] if file_id > 0 else 0)
+
+    def _build_valid_indices(self) -> np.ndarray:
+        batch_size = int(self.config.get("filter_batch_size", 2048))
+        max_len_plus = int(self.max_length) + 1
+
+        valid = []
+
+        for _, _, texts, global_start in self._iter_row_groups_texts():
+            texts = [("" if t is None else str(t)) for t in texts]
+            for offset in range(0, len(texts), batch_size):
+                chunk = texts[offset : offset + batch_size]
+
+                enc = self.tokenizer(
+                    chunk,
+                    add_special_tokens=False,
+                    truncation=True,
+                    max_length=max_len_plus,
+                    padding=False,
+                    return_attention_mask=False,
+                )
+
+                lengths = [len(x) for x in enc["input_ids"]]
+                for i, L in enumerate(lengths):
+                    if L <= self.max_length:
+                        valid.append(global_start + offset + i)
+
+        valid = np.asarray(valid, dtype=np.int64)
+        print(f"filter dataset len: {len(valid)} / {self.total_rows}")
+        return valid
+
+
     def _setup_index_mapping(self):
-        N = int(self.total_rows)
+        if self.filter_overlong_prompts:
+            self.valid_global_indices = self._build_valid_indices()
+        else:
+            self.valid_global_indices = np.arange(self.total_rows, dtype=np.int64)
+
+        N = int(self.valid_global_indices.shape[0])
         rng = np.random.default_rng(self.seed) if self.seed is not None else np.random.default_rng()
 
         if self.shuffle:
@@ -407,21 +400,18 @@ class PretrainDatasetRowGroupLazy(Dataset):
             self.index_map = np.arange(N, dtype=np.int64)
 
         max_samples = int(self.max_samples) if self.max_samples is not None else -1
-        if max_samples > 0:
-            self.effective_len = min(max_samples, N)
-        else:
-            self.effective_len = N
+        self.effective_len = min(max_samples, N) if max_samples > 0 else N
 
-    def __len__(self):
-        return int(getattr(self, "effective_len", self.total_rows))
 
     def _global_index(self, idx: int) -> int:
         if idx < 0:
             idx += len(self)
         if idx < 0 or idx >= len(self):
             raise IndexError(f"Index {idx} out of range (len={len(self)})")
-        return int(self.index_map[idx])
+        return int(self.valid_global_indices[self.index_map[idx]])
 
+    def __len__(self):
+        return int(getattr(self, "effective_len", self.total_rows))
 
     @staticmethod
     def _binary_search(a: List[int], x: int) -> int:
@@ -504,13 +494,14 @@ class PretrainDatasetRowGroupLazy(Dataset):
                 "position_ids": position_ids,
                 "loss_mask": loss_mask,
             }
-
-        # no_padding
-        return {
-            "input_ids": input_ids,
-            "position_ids": position_ids,
-            "loss_mask": loss_mask,
-        }
+        else:
+            # no_padding
+            return {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "position_ids": position_ids,
+                "loss_mask": loss_mask,
+            }
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         global_idx = self._global_index(idx)
