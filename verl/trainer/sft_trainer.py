@@ -34,6 +34,7 @@ from tqdm import tqdm
 from verl.utils import tensordict_utils as tu
 from verl.utils.checkpoint import CheckpointHandler
 from verl.utils.dataset.dataset_utils import SFTTensorCollator
+from verl.utils.dataset.mix_dataset import MixDataset
 from verl.utils.dataset.multiturn_sft_dataset import MultiTurnSFTDataset
 from verl.utils.dataset.pretrain_dataset import PretrainDataset, PretrainDatasetRowGroupLazy
 from verl.utils.device import auto_set_device, get_device_name
@@ -470,6 +471,8 @@ def create_sft_dataset(data_paths, data_config, tokenizer, processor, max_sample
         from verl.utils.import_utils import load_extern_object
 
         dataset_cls = load_extern_object(data_config.custom_cls.path, data_config.custom_cls.name)
+    elif data_config.get("mix_dataset", {}).get("enable", False):
+        dataset_cls = MixDataset
     elif getattr(data_config, 'pretrain', None):
         if getattr(data_config, 'lazy_load', False):
             dataset_cls = PretrainDatasetRowGroupLazy
