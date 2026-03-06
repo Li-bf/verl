@@ -58,7 +58,7 @@ class MixDataset(PretrainDatasetRowGroupLazy):
         self.messages_key = config.get("messages_key", "messages")
         self.tools_key = config.get("tools_key", "tools")
         self.enable_thinking_key = config.get("enable_thinking_key", "enable_thinking")
-        self.enable_thinking_default = config.get("enable_thinking_default", None)
+        self.enable_thinking_default = self._parse_enable_thinking_default(config.get("enable_thinking_default", None))
         self.apply_chat_template_kwargs = config.get("apply_chat_template_kwargs", {})
         normalized_files = self._normalize_input_files(parquet_files)
 
@@ -150,6 +150,33 @@ class MixDataset(PretrainDatasetRowGroupLazy):
             return None
         return None
 
+    @staticmethod
+    def _parse_enable_thinking_default(value: Any) -> Optional[bool]:
+        if value is None:
+            return None
+        if isinstance(value, (bool, np.bool_)):
+            return bool(value)
+        if isinstance(value, (int, np.integer)):
+            if int(value) in (0, 1):
+                return bool(value)
+            raise ValueError(f"Invalid enable_thinking_default: {value}. Expect 0/1 for integer values.")
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes"}:
+                return True
+            if lowered in {"false", "0", "no"}:
+                return False
+            if lowered in {"", "none", "null"}:
+                return None
+            raise ValueError(
+                f"Invalid enable_thinking_default: {value}. "
+                "Expect one of true/false/1/0/yes/no/null/none."
+            )
+        raise ValueError(
+            f"Invalid enable_thinking_default type: {type(value)}. "
+            "Expect bool/int/str/None."
+        )
+
     def _process_single_message(
         self,
         index: int,
@@ -213,6 +240,7 @@ class MixDataset(PretrainDatasetRowGroupLazy):
         attention_mask = torch.cat(attention_mask, dim=0)
 
         print_assembled_message(self.tokenizer, messages, input_ids, loss_mask, attention_mask, tools)
+        self.sanity_check(input_ids, messages, tools, enable_thinking)
 
         keys_to_remove = []
         for k, v in multi_modal_inputs.items():
@@ -295,6 +323,40 @@ class MixDataset(PretrainDatasetRowGroupLazy):
             return res
 
         raise ValueError(f"Unknown pad mode {self.pad_mode}")
+
+    def sanity_check(
+        self,
+        input_ids: torch.Tensor,
+        messages: list[dict],
+        tools: Optional[list[dict]],
+        enable_thinking: Optional[bool],
+    ):
+        """Check concatenated per-turn input_ids equals one-shot chat-template input_ids."""
+        processor = self.processor if self.processor is not None else self.tokenizer
+        apply_chat_template_kwargs = {**self.apply_chat_template_kwargs}
+        if enable_thinking is not None:
+            apply_chat_template_kwargs["enable_thinking"] = enable_thinking
+        inputs = processor.apply_chat_template(
+            messages,
+            tools=tools,
+            add_generation_prompt=False,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+            **apply_chat_template_kwargs,
+        )
+
+        error_message = (
+            "MixDataset applies chat template to each turn separately and concatenates `input_ids`, "
+            "which may not equal applying chat template to all messages at once.\n"
+            "Set `ignore_input_ids_mismatch=True` to ignore this mismatch and keep concatenated `input_ids`."
+        )
+        if not torch.equal(input_ids, inputs["input_ids"].squeeze(0)):
+            if self.ignore_input_ids_mismatch:
+                warn_fn = getattr(logger, "warning_once", logger.warning)
+                warn_fn(error_message)
+            else:
+                raise AssertionError(error_message)
 
     def __getitem__(self, item):
         global_idx = self._global_index(item)
