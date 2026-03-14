@@ -33,7 +33,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from verl.utils import hf_processor, hf_tokenizer
-from verl.utils.chat_template import apply_chat_template, extract_system_prompt_and_generation
+from verl.utils.chat_template import extract_system_prompt_and_generation
 from verl.utils.dataset.multiturn_sft_dataset import MultiTurnSFTDataset
 from verl.utils.py_functional import convert_nested_value_to_list_recursive
 
@@ -152,6 +152,79 @@ def normalize_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] 
     return normalized_tools
 
 
+def should_retry_with_dummy_user(messages: list[dict[str, Any]], error: Exception) -> bool:
+    if any(message.get("role") == "user" for message in messages):
+        return False
+
+    error_text = str(error).lower()
+    return "user message" in error_text or "at least one user" in error_text
+
+
+def debug_apply_chat_template(
+    processor_or_tokenizer,
+    messages: list[dict[str, Any]],
+    *,
+    tokenize: bool,
+    add_generation_prompt: bool,
+    tools=None,
+    return_dict: bool = False,
+    **kwargs,
+):
+    try:
+        output = processor_or_tokenizer.apply_chat_template(
+            messages,
+            tokenize=tokenize,
+            add_generation_prompt=add_generation_prompt,
+            tools=tools,
+            return_dict=return_dict,
+            **kwargs,
+        )
+        return output, None, None
+    except Exception as raw_error:
+        if not should_retry_with_dummy_user(messages, raw_error):
+            raise RuntimeError(str(raw_error)) from raw_error
+
+        dummy_user_message = [{"role": "user", "content": [{"type": "text", "text": ""}]}]
+        try:
+            dummy_user_prefix = processor_or_tokenizer.apply_chat_template(
+                dummy_user_message,
+                tokenize=tokenize,
+                add_generation_prompt=False,
+                tools=tools,
+                return_dict=return_dict,
+                **kwargs,
+            )
+            output = processor_or_tokenizer.apply_chat_template(
+                dummy_user_message + messages,
+                tokenize=tokenize,
+                add_generation_prompt=add_generation_prompt,
+                tools=tools,
+                return_dict=return_dict,
+                **kwargs,
+            )
+        except Exception as fallback_error:
+            raise RuntimeError(f"raw_error={raw_error}; fallback_error={fallback_error}") from fallback_error
+
+        if not tokenize:
+            output = output[len(dummy_user_prefix) :]
+        elif not return_dict:
+            if isinstance(output[0], list):
+                assert len(output) == 1, "output must be a list[int] or list[list[int]]"
+                dummy_user_prefix = dummy_user_prefix[0]
+                output = output[0]
+            output = output[len(dummy_user_prefix) :]
+        else:
+            dummy_user_prefix = dict(dummy_user_prefix)
+            output = dict(output)
+            prefix_len = dummy_user_prefix["input_ids"].shape[1]
+            output["input_ids"] = output["input_ids"][:, prefix_len:]
+            output["attention_mask"] = output["attention_mask"][:, prefix_len:]
+            if "mm_token_type_ids" in output:
+                output["mm_token_type_ids"] = output["mm_token_type_ids"][:, prefix_len:]
+
+        return output, raw_error, None
+
+
 def build_per_turn_tokens(
     tokenizer,
     processor,
@@ -227,7 +300,7 @@ def main() -> None:
         processor = loaded_processor if should_use_processor(messages, loaded_processor) else None
 
         try:
-            whole_text = apply_chat_template(
+            whole_text, whole_text_raw_error, _ = debug_apply_chat_template(
                 processor if processor is not None else tokenizer,
                 messages,
                 tools=tools,
@@ -256,7 +329,7 @@ def main() -> None:
             continue
 
         try:
-            whole_inputs = apply_chat_template(
+            whole_inputs, whole_inputs_raw_error, _ = debug_apply_chat_template(
                 processor if processor is not None else tokenizer,
                 messages,
                 tools=tools,
@@ -276,6 +349,8 @@ def main() -> None:
             if tools is not None:
                 print("tools_json:")
                 print(stringify_object(tools))
+            if whole_text_raw_error is not None:
+                print(f"whole_text_raw_error={type(whole_text_raw_error).__name__}: {whole_text_raw_error}")
             print("whole_rendered_text_with_generation_prompt:")
             print(whole_text[:4000] + ("\n...<truncated>..." if len(whole_text) > 4000 else ""))
             if args.stop_after > 0 and error_count >= args.stop_after:
@@ -300,6 +375,10 @@ def main() -> None:
             if tools is not None:
                 print("tools_json:")
                 print(stringify_object(tools))
+            if whole_text_raw_error is not None:
+                print(f"whole_text_raw_error={type(whole_text_raw_error).__name__}: {whole_text_raw_error}")
+            if whole_inputs_raw_error is not None:
+                print(f"whole_inputs_raw_error={type(whole_inputs_raw_error).__name__}: {whole_inputs_raw_error}")
             print("whole_rendered_text_with_generation_prompt:")
             print(whole_text[:4000] + ("\n...<truncated>..." if len(whole_text) > 4000 else ""))
             print("whole_decoded_no_generation_prompt:")
