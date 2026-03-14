@@ -316,6 +316,66 @@ class MultiTurnSFTDataset(Dataset):
 
         return input_ids, loss_mask, attention_mask, inputs
 
+    def _group_messages_for_template(self, messages: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+        grouped_messages: list[list[dict[str, Any]]] = []
+        current_group: list[dict[str, Any]] = []
+
+        for message in messages:
+            if message.get("role") == "tool":
+                current_group.append(message)
+                continue
+
+            if current_group:
+                grouped_messages.append(current_group)
+                current_group = []
+            grouped_messages.append([message])
+
+        if current_group:
+            grouped_messages.append(current_group)
+
+        return grouped_messages
+
+    def _process_message_chunk(
+        self,
+        chunk_index: int,
+        message_chunk: list[dict[str, Any]],
+        full_message: list[dict[str, Any]],
+        tools: Optional[list[dict[str, Any]]] = None,
+        enable_thinking: Optional[bool] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
+        processor = self.processor if self.processor is not None else self.tokenizer
+        apply_chat_template_kwargs = {**self.apply_chat_template_kwargs}
+        if enable_thinking is not None:
+            apply_chat_template_kwargs["enable_thinking"] = enable_thinking
+
+        inputs = apply_chat_template(
+            processor,
+            messages=message_chunk,
+            tools=tools,
+            add_generation_prompt=False,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+            **apply_chat_template_kwargs,
+        )
+
+        inputs = dict(inputs)
+        input_ids = inputs.pop("input_ids")[0]
+        attention_mask = inputs.pop("attention_mask")[0]
+
+        # Non-first chunks may include the template's system preamble again; strip it once.
+        if chunk_index != 0 and message_chunk[0]["role"] != "system":
+            input_ids = input_ids[len(self.system_prompt) :]
+            attention_mask = attention_mask[len(self.system_prompt) :]
+
+        if len(message_chunk) == 1 and message_chunk[0]["role"] == "assistant":
+            loss_mask = torch.ones_like(attention_mask)
+            loss_mask[: len(self.generation_prompt)] = 0
+        else:
+            loss_mask = torch.zeros_like(attention_mask)
+
+        return input_ids, loss_mask, attention_mask, inputs
+
     def _build_messages(self, example: dict):
         """Replace <image> and <video> placeholder in messages with corresponding image and video
         which is required by processor.apply_chat_template.
@@ -377,12 +437,14 @@ class MultiTurnSFTDataset(Dataset):
         if enable_thinking is not None:
             enable_thinking = bool(enable_thinking)
 
-        # 1. tokenize each message
+        message_chunks = self._group_messages_for_template(messages)
+
+        # 1. tokenize each message chunk
         input_ids, loss_mask, attention_mask, multi_modal_inputs = [], [], [], {}
-        for i, message in enumerate(messages):
-            _input_ids, _loss_mask, _attention_mask, _inputs = self._process_single_message(
-                index=i,
-                message=message,
+        for i, message_chunk in enumerate(message_chunks):
+            _input_ids, _loss_mask, _attention_mask, _inputs = self._process_message_chunk(
+                chunk_index=i,
+                message_chunk=message_chunk,
                 full_message=messages,
                 tools=tools if i == 0 else None,
                 enable_thinking=enable_thinking,

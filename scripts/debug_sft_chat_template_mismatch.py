@@ -193,7 +193,7 @@ def debug_apply_chat_template(
         return output, raw_error, None
 
 
-def build_per_turn_tokens(
+def build_per_chunk_tokens(
     tokenizer,
     processor,
     messages: list[dict[str, Any]],
@@ -209,30 +209,31 @@ def build_per_turn_tokens(
     dataset.system_prompt, dataset.generation_prompt = extract_system_prompt_and_generation(tokenizer)
 
     input_ids = []
-    turn_infos = []
-    for i, message in enumerate(messages):
-        turn_tools = tools if i == 0 else None
-        turn_input_ids, turn_loss_mask, turn_attention_mask, _ = dataset._process_single_message(
-            index=i,
-            message=message,
+    chunk_infos = []
+    message_chunks = dataset._group_messages_for_template(messages)
+    for i, message_chunk in enumerate(message_chunks):
+        chunk_tools = tools if i == 0 else None
+        chunk_input_ids, chunk_loss_mask, chunk_attention_mask, _ = dataset._process_message_chunk(
+            chunk_index=i,
+            message_chunk=message_chunk,
             full_message=messages,
-            tools=turn_tools,
+            tools=chunk_tools,
             enable_thinking=apply_kwargs.get("enable_thinking"),
         )
-        input_ids.append(turn_input_ids)
-        turn_infos.append(
+        input_ids.append(chunk_input_ids)
+        chunk_infos.append(
             {
-                "turn_index": i,
-                "role": message.get("role"),
-                "token_len": int(turn_input_ids.shape[0]),
-                "loss_tokens": int(turn_loss_mask.sum().item()),
-                "attn_tokens": int(turn_attention_mask.sum().item()),
-                "decoded": decode_preview(tokenizer, turn_input_ids),
+                "chunk_index": i,
+                "roles": [message.get("role") for message in message_chunk],
+                "token_len": int(chunk_input_ids.shape[0]),
+                "loss_tokens": int(chunk_loss_mask.sum().item()),
+                "attn_tokens": int(chunk_attention_mask.sum().item()),
+                "decoded": decode_preview(tokenizer, chunk_input_ids),
             }
         )
 
-    per_turn_ids = torch.cat(input_ids, dim=0)
-    return per_turn_ids, turn_infos, {
+    per_chunk_ids = torch.cat(input_ids, dim=0)
+    return per_chunk_ids, chunk_infos, {
         "system_prompt_len": len(dataset.system_prompt),
         "generation_prompt_len": len(dataset.generation_prompt),
     }
@@ -327,7 +328,7 @@ def main() -> None:
             continue
 
         try:
-            per_turn_ids, turn_infos, prompt_info = build_per_turn_tokens(
+            per_chunk_ids, chunk_infos, prompt_info = build_per_chunk_tokens(
                 tokenizer=tokenizer,
                 processor=processor,
                 messages=messages,
@@ -338,7 +339,7 @@ def main() -> None:
         except Exception as e:
             error_count += 1
             print("=" * 120)
-            print(f"row={row_idx} stage=per_turn_concat error={type(e).__name__}: {e}")
+            print(f"row={row_idx} stage=per_chunk_concat error={type(e).__name__}: {e}")
             print("messages_json:")
             print(stringify_messages(messages))
             if tools is not None:
@@ -356,9 +357,9 @@ def main() -> None:
                 break
             continue
 
-        token_mismatch = not torch.equal(per_turn_ids, whole_ids_no_gen)
+        token_mismatch = not torch.equal(per_chunk_ids, whole_ids_no_gen)
         filter_keep = len(whole_ids) <= args.max_length
-        train_keep = len(per_turn_ids) <= args.max_length
+        train_keep = len(per_chunk_ids) <= args.max_length
         filtered_but_train_overlong = filter_keep and not train_keep
         if filtered_but_train_overlong:
             overlong_count += 1
@@ -371,7 +372,7 @@ def main() -> None:
         print("=" * 120)
         print(
             f"row={row_idx} whole_len_with_gen={len(whole_ids)} "
-            f"whole_len_no_gen={len(whole_ids_no_gen)} per_turn_len={len(per_turn_ids)} "
+            f"whole_len_no_gen={len(whole_ids_no_gen)} per_chunk_len={len(per_chunk_ids)} "
             f"filter_keep={filter_keep} train_keep={train_keep} token_mismatch={token_mismatch}"
         )
         print(
@@ -391,13 +392,13 @@ def main() -> None:
         print("whole_decoded_no_generation_prompt:")
         print(decode_preview(tokenizer, whole_ids_no_gen, max_chars=4000))
 
-        print("per_turn_decoded_concat:")
-        print(decode_preview(tokenizer, per_turn_ids, max_chars=4000))
+        print("per_chunk_decoded_concat:")
+        print(decode_preview(tokenizer, per_chunk_ids, max_chars=4000))
 
         if token_mismatch:
-            min_len = min(len(whole_ids_no_gen), len(per_turn_ids))
+            min_len = min(len(whole_ids_no_gen), len(per_chunk_ids))
             diff_pos = next(
-                (i for i in range(min_len) if int(whole_ids_no_gen[i]) != int(per_turn_ids[i])),
+                (i for i in range(min_len) if int(whole_ids_no_gen[i]) != int(per_chunk_ids[i])),
                 min_len,
             )
             print(f"first_diff_token_pos={diff_pos}")
@@ -405,16 +406,16 @@ def main() -> None:
                 print(
                     "token_window:"
                     f" whole={whole_ids_no_gen[max(0, diff_pos - 10): diff_pos + 10].tolist()}"
-                    f" per_turn={per_turn_ids[max(0, diff_pos - 10): diff_pos + 10].tolist()}"
+                    f" per_chunk={per_chunk_ids[max(0, diff_pos - 10): diff_pos + 10].tolist()}"
                 )
 
-        print("turn_breakdown:")
-        for turn in turn_infos:
+        print("chunk_breakdown:")
+        for chunk in chunk_infos:
             print(
-                f"  turn={turn['turn_index']} role={turn['role']} "
-                f"token_len={turn['token_len']} loss_tokens={turn['loss_tokens']} attn_tokens={turn['attn_tokens']}"
+                f"  chunk={chunk['chunk_index']} roles={chunk['roles']} "
+                f"token_len={chunk['token_len']} loss_tokens={chunk['loss_tokens']} attn_tokens={chunk['attn_tokens']}"
             )
-            print(turn["decoded"])
+            print(chunk["decoded"])
             print("-" * 80)
 
         if args.stop_after > 0 and mismatch_count >= args.stop_after:
