@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import json
+from copy import deepcopy
 from functools import wraps
 from typing import Any, Optional
 
@@ -376,36 +377,45 @@ class MultiTurnSFTDataset(Dataset):
 
         return input_ids, loss_mask, attention_mask, inputs
 
-    def _build_messages(self, example: dict):
-        """Replace <image> and <video> placeholder in messages with corresponding image and video
-        which is required by processor.apply_chat_template.
-        - <image>: {"type": "image", "image": image}
-        - <video>: {"type": "video", "video": video}
+    def _normalize_message_content_schema(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Normalize text-only messages to processor-compatible content blocks."""
+        if self.processor is None:
+            return messages
 
-        Args:
-            example: Row dictionary from dataframe.
+        for message in messages:
+            content = message.get("content")
+            if isinstance(content, str):
+                message["content"] = [{"type": "text", "text": content}]
 
-        Returns:
-            messages: List of messages with replaced placeholder.
-        """
-        messages: list = convert_nested_value_to_list_recursive(example[self.messages_key])
+        return messages
+
+    def _build_messages(self, messages: list[dict[str, Any]], example: dict[str, Any]):
+        """Normalize messages and replace <image>/<video> placeholders when multimodal inputs exist."""
+        messages = self._normalize_message_content_schema(messages)
         images = example[self.image_key] if self.image_key in example else []
         videos = example[self.video_key] if self.video_key in example else []
+
+        if not images and not videos:
+            return messages
+
+        assert self.processor is not None, "processor is needed to process image and video"
 
         image_offset, video_offset = 0, 0
         for message in messages:
             content = message["content"]
-            if not isinstance(content, str):
+            if isinstance(content, str):
+                raw_text = content
+            elif (
+                isinstance(content, list)
+                and all(isinstance(item, dict) for item in content)
+                and all(item.get("type") == "text" for item in content)
+            ):
+                raw_text = "".join(item.get("text", "") for item in content)
+            else:
                 continue
-
-            if self.image_key not in example and self.video_key not in example:
-                if self.processor is not None:
-                    message["content"] = [{"type": "text", "text": content}]
-                continue
-            assert self.processor is not None, "processor is needed to process image and video"
 
             content_list = []
-            segments = re.split("(<image>|<video>)", content)
+            segments = re.split("(<image>|<video>)", raw_text)
             segments = [item for item in segments if item != ""]
             for segment in segments:
                 if segment == "<image>":
@@ -426,10 +436,7 @@ class MultiTurnSFTDataset(Dataset):
 
     def __getitem__(self, item):
         row_dict: dict = self.dataframe.iloc[item].to_dict()
-        # 修复bug：输入多个不同schema的parquet时，存在list被加载成np.ndarray的情况，导致apply_chat_template报错
-        # 注意这里没有_build_messages，多模态输入目前会有问题
-        # messages = self._build_messages(row_dict)
-        messages = self.messages[item]
+        messages = self._build_messages(deepcopy(self.messages[item]), row_dict)
         tools = self.tools[item] if self.tools is not None else None
         enable_thinking = (
             self.enable_thinking[item] if self.enable_thinking is not None else self.enable_thinking_default
