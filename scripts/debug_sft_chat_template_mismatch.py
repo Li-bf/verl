@@ -152,6 +152,36 @@ def normalize_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] 
     return normalized_tools
 
 
+def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized_messages = []
+    for message in messages:
+        if not isinstance(message, dict):
+            normalized_messages.append(message)
+            continue
+
+        normalized_message = dict(message)
+        tool_calls = normalized_message.get("tool_calls")
+        if isinstance(tool_calls, list):
+            normalized_tool_calls = []
+            for tool_call in tool_calls:
+                if not isinstance(tool_call, dict):
+                    normalized_tool_calls.append(tool_call)
+                    continue
+
+                normalized_tool_call = dict(tool_call)
+                function = normalized_tool_call.get("function")
+                if isinstance(function, dict):
+                    normalized_function = dict(function)
+                    normalized_function["arguments"] = maybe_json_loads(normalized_function.get("arguments"))
+                    normalized_tool_call["function"] = normalized_function
+                normalized_tool_calls.append(normalized_tool_call)
+            normalized_message["tool_calls"] = normalized_tool_calls
+
+        normalized_messages.append(normalized_message)
+
+    return normalized_messages
+
+
 def should_retry_with_dummy_user(messages: list[dict[str, Any]], error: Exception) -> bool:
     if any(message.get("role") == "user" for message in messages):
         return False
@@ -293,6 +323,7 @@ def main() -> None:
     for row_idx in tqdm(range(args.start, end), desc="Inspect rows", total=end - args.start):
         row = df.iloc[row_idx].to_dict()
         messages = convert_nested_value_to_list_recursive(row[args.messages_key])
+        messages = normalize_messages(messages)
         tools = None
         if args.tools_key in row and row[args.tools_key] is not None:
             tools = convert_nested_value_to_list_recursive(row[args.tools_key])
