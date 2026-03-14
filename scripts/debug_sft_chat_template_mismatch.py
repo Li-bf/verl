@@ -34,7 +34,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from verl.utils import hf_processor, hf_tokenizer
 from verl.utils.chat_template import extract_system_prompt_and_generation
-from verl.utils.dataset.multiturn_sft_dataset import MultiTurnSFTDataset
+from verl.utils.dataset.multiturn_sft_dataset import (
+    MultiTurnSFTDataset,
+    _normalize_message_tool_calls,
+    _normalize_tool_schemas,
+)
 from verl.utils.py_functional import convert_nested_value_to_list_recursive
 
 
@@ -114,72 +118,6 @@ def should_use_processor(messages: list[dict[str, Any]], processor) -> bool:
         if isinstance(content, list):
             return True
     return False
-
-
-def maybe_json_loads(value: Any) -> Any:
-    if not isinstance(value, str):
-        return value
-
-    stripped = value.strip()
-    if not stripped or stripped[0] not in "{[":
-        return value
-
-    try:
-        return json.loads(value)
-    except json.JSONDecodeError:
-        return value
-
-
-def normalize_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
-    if tools is None:
-        return None
-
-    normalized_tools = []
-    for tool in tools:
-        if not isinstance(tool, dict):
-            normalized_tools.append(tool)
-            continue
-
-        normalized_tool = dict(tool)
-        function = normalized_tool.get("function")
-        if isinstance(function, dict):
-            normalized_function = dict(function)
-            normalized_function["parameters"] = maybe_json_loads(normalized_function.get("parameters"))
-            normalized_tool["function"] = normalized_function
-
-        normalized_tools.append(normalized_tool)
-
-    return normalized_tools
-
-
-def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    normalized_messages = []
-    for message in messages:
-        if not isinstance(message, dict):
-            normalized_messages.append(message)
-            continue
-
-        normalized_message = dict(message)
-        tool_calls = normalized_message.get("tool_calls")
-        if isinstance(tool_calls, list):
-            normalized_tool_calls = []
-            for tool_call in tool_calls:
-                if not isinstance(tool_call, dict):
-                    normalized_tool_calls.append(tool_call)
-                    continue
-
-                normalized_tool_call = dict(tool_call)
-                function = normalized_tool_call.get("function")
-                if isinstance(function, dict):
-                    normalized_function = dict(function)
-                    normalized_function["arguments"] = maybe_json_loads(normalized_function.get("arguments"))
-                    normalized_tool_call["function"] = normalized_function
-                normalized_tool_calls.append(normalized_tool_call)
-            normalized_message["tool_calls"] = normalized_tool_calls
-
-        normalized_messages.append(normalized_message)
-
-    return normalized_messages
 
 
 def should_retry_with_dummy_user(messages: list[dict[str, Any]], error: Exception) -> bool:
@@ -323,11 +261,11 @@ def main() -> None:
     for row_idx in tqdm(range(args.start, end), desc="Inspect rows", total=end - args.start):
         row = df.iloc[row_idx].to_dict()
         messages = convert_nested_value_to_list_recursive(row[args.messages_key])
-        messages = normalize_messages(messages)
+        messages = _normalize_message_tool_calls(messages)
         tools = None
         if args.tools_key in row and row[args.tools_key] is not None:
             tools = convert_nested_value_to_list_recursive(row[args.tools_key])
-            tools = normalize_tools(tools)
+            tools = _normalize_tool_schemas(tools)
         processor = loaded_processor if should_use_processor(messages, loaded_processor) else None
 
         try:

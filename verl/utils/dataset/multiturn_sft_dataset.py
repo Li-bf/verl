@@ -19,6 +19,7 @@ Multi-turn SFT dataset that supports training on conversation data with multiple
 import logging
 import os
 import re
+import json
 from functools import wraps
 from typing import Any, Optional
 
@@ -40,6 +41,71 @@ from verl.utils.py_functional import convert_nested_value_to_list_recursive
 
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
+
+
+def _maybe_json_loads(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+
+    stripped = value.strip()
+    if not stripped or stripped[0] not in "{[":
+        return value
+
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def _normalize_tool_schemas(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
+    if tools is None:
+        return None
+
+    normalized_tools = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            normalized_tools.append(tool)
+            continue
+
+        normalized_tool = dict(tool)
+        function = normalized_tool.get("function")
+        if isinstance(function, dict):
+            normalized_function = dict(function)
+            normalized_function["parameters"] = _maybe_json_loads(normalized_function.get("parameters"))
+            normalized_tool["function"] = normalized_function
+        normalized_tools.append(normalized_tool)
+
+    return normalized_tools
+
+
+def _normalize_message_tool_calls(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized_messages = []
+    for message in messages:
+        if not isinstance(message, dict):
+            normalized_messages.append(message)
+            continue
+
+        normalized_message = dict(message)
+        tool_calls = normalized_message.get("tool_calls")
+        if isinstance(tool_calls, list):
+            normalized_tool_calls = []
+            for tool_call in tool_calls:
+                if not isinstance(tool_call, dict):
+                    normalized_tool_calls.append(tool_call)
+                    continue
+
+                normalized_tool_call = dict(tool_call)
+                function = normalized_tool_call.get("function")
+                if isinstance(function, dict):
+                    normalized_function = dict(function)
+                    normalized_function["arguments"] = _maybe_json_loads(normalized_function.get("arguments"))
+                    normalized_tool_call["function"] = normalized_function
+                normalized_tool_calls.append(normalized_tool_call)
+            normalized_message["tool_calls"] = normalized_tool_calls
+
+        normalized_messages.append(normalized_message)
+
+    return normalized_messages
 
 
 def once(func):
@@ -164,11 +230,21 @@ class MultiTurnSFTDataset(Dataset):
             print(f"selected {self.max_samples} random samples out of {total}")
 
         # Extract messages list from dataframe
-        self.messages = self.dataframe[self.messages_key].apply(convert_nested_value_to_list_recursive).tolist()
+        self.messages = (
+            self.dataframe[self.messages_key]
+            .apply(convert_nested_value_to_list_recursive)
+            .apply(_normalize_message_tool_calls)
+            .tolist()
+        )
 
         # Extract tools list from dataframe
         if self.tools_key in self.dataframe.columns:
-            self.tools = self.dataframe[self.tools_key].apply(convert_nested_value_to_list_recursive).tolist()
+            self.tools = (
+                self.dataframe[self.tools_key]
+                .apply(convert_nested_value_to_list_recursive)
+                .apply(_normalize_tool_schemas)
+                .tolist()
+            )
         else:
             self.tools = None
         # Extract enable_thinking list from dataframe
