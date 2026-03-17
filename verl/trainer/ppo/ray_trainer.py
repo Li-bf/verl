@@ -115,6 +115,30 @@ def apply_kl_penalty(data: DataProto, kl_ctrl: core_algos.AdaptiveKLController, 
     return data, metrics
 
 
+def _make_json_serializable(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: _make_json_serializable(v) for k, v in obj.items()}
+
+    if isinstance(obj, list):
+        return [_make_json_serializable(v) for v in obj]
+
+    if isinstance(obj, tuple):
+        return [_make_json_serializable(v) for v in obj]
+
+    if isinstance(obj, np.ndarray):
+        return _make_json_serializable(obj.tolist())
+
+    if isinstance(obj, np.generic):
+        return _make_json_serializable(obj.item())
+
+    if torch.is_tensor(obj):
+        if obj.ndim == 0:
+            return _make_json_serializable(obj.item())
+        return _make_json_serializable(obj.detach().cpu().tolist())
+
+    return obj
+
+
 def compute_response_mask(data: DataProto):
     """Compute the attention mask for the response part of the sequence.
 
@@ -421,7 +445,7 @@ class RayPPOTrainer:
         lines = []
         for i in range(n):
             entry = {k: v[i] for k, v in base_data.items()}
-            lines.append(json.dumps(entry, ensure_ascii=False, default=str))
+            lines.append(json.dumps(_make_json_serializable(entry), ensure_ascii=False, default=str))
 
         with open(filename, "w") as f:
             f.write("\n".join(lines) + "\n")
