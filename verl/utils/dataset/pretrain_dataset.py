@@ -41,6 +41,35 @@ logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 
 
+def _uses_qwen_vl_mrope(processor: Optional[ProcessorMixin]) -> bool:
+    image_processor = getattr(processor, "image_processor", None)
+    if image_processor is None:
+        return False
+
+    image_processor_name = image_processor.__class__.__name__
+    return any(
+        name in image_processor_name
+        for name in ("Qwen2VLImageProcessor", "Qwen2_5_VLImageProcessor", "Qwen3VLImageProcessor")
+    )
+
+
+def _build_text_position_ids(
+    input_ids: torch.Tensor,
+    attention_mask: torch.Tensor,
+    processor: Optional[ProcessorMixin],
+) -> torch.Tensor:
+    text_position_ids = torch.arange(input_ids.shape[0], dtype=torch.long)
+    if not _uses_qwen_vl_mrope(processor):
+        return text_position_ids
+
+    vision_position_ids = get_rope_index(
+        processor,
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+    )
+    return torch.cat((text_position_ids.unsqueeze(0), vision_position_ids), dim=0)
+
+
 def once(func):
     """Decorator to ensure a function runs only once. Subsequent calls do nothing."""
 
@@ -171,7 +200,7 @@ class PretrainDataset(Dataset):
         for k, v in multi_modal_inputs.items():
             multi_modal_inputs[k] = torch.concat(v, dim=0)
 
-        position_ids = torch.arange(input_ids.shape[0], dtype=torch.long)
+        position_ids = _build_text_position_ids(input_ids=input_ids, attention_mask=attention_mask, processor=self.processor)
 
         # 2. handle padding
         sequence_length = input_ids.shape[0]
@@ -465,7 +494,7 @@ class PretrainDatasetRowGroupLazy(Dataset):
         input_ids = self.tokenizer(text, add_special_tokens=False, return_tensors="pt")["input_ids"][0]
         attention_mask = torch.ones_like(input_ids)
         loss_mask = torch.ones_like(input_ids)
-        position_ids = torch.arange(input_ids.shape[0], dtype=torch.long)
+        position_ids = _build_text_position_ids(input_ids=input_ids, attention_mask=attention_mask, processor=self.processor)
 
         # truncation
         seq_len = input_ids.shape[0]

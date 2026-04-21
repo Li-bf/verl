@@ -37,6 +37,34 @@ class SFTTensorCollator:
     def __init__(self, pad_mode: DatasetPadMode = DatasetPadMode.LEFT_RIGHT):
         self.pad_mode = pad_mode
 
+    @staticmethod
+    def _get_first_value(batch: list[dict[str, any]], key: str):
+        for item in batch:
+            if key in item:
+                return item[key]
+        raise KeyError(f"Key {key} is missing from every sample in the batch")
+
+    @staticmethod
+    def _normalize_position_ids(tensors: list[torch.Tensor]) -> list[torch.Tensor]:
+        dims = {tensor.dim() for tensor in tensors}
+        if len(dims) <= 1:
+            return tensors
+
+        if not dims.issubset({1, 2}):
+            raise RuntimeError(
+                f"Unsupported mixed position_ids ranks in batch: {[tensor.dim() for tensor in tensors]}"
+            )
+
+        target_rows = {tensor.shape[0] for tensor in tensors if tensor.dim() == 2}
+        if len(target_rows) != 1:
+            raise RuntimeError(
+                "Mixed multi-dimensional position_ids must share the same leading dimension, "
+                f"got {sorted(target_rows)}"
+            )
+
+        target_rows = target_rows.pop()
+        return [tensor.unsqueeze(0).expand(target_rows, -1) if tensor.dim() == 1 else tensor for tensor in tensors]
+
     def __call__(self, batch: list[dict[str, any]]) -> dict[str, any]:
         if self.pad_mode == DatasetPadMode.NO_PADDING:
             return self.collate_variable_batch(batch)
@@ -65,8 +93,15 @@ class SFTTensorCollator:
 
         # Handle tensor values by creating a NestedTensor.
         for key in tensor_keys:
-            if isinstance(batch[0][key], torch.Tensor):
+            sample_value = self._get_first_value(batch, key)
+            if isinstance(sample_value, torch.Tensor):
+                missing_indices = [index for index, item in enumerate(batch) if key not in item]
+                if missing_indices:
+                    raise KeyError(f"Tensor key {key} is missing from samples {missing_indices}")
+
                 tensors = [item[key] for item in batch]
+                if key == "position_ids":
+                    tensors = self._normalize_position_ids(tensors)
                 if tensors[0].dim() >= 2:
                     # For multi-dim tensors (e.g., 3D position_ids with shape (num_heads, seq_len)),
                     # use nested_tensor_from_jagged with explicit jagged_dim to avoid ambiguity
