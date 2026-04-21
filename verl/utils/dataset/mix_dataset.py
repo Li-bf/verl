@@ -215,12 +215,25 @@ class MixDataset(PretrainDatasetRowGroupLazy):
 
         return input_ids, loss_mask, attention_mask, inputs
 
+    def _normalize_message_content_schema(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Normalize text-only messages to processor-compatible content blocks."""
+        if self.processor is None:
+            return messages
+
+        for message in messages:
+            content = message.get("content")
+            if isinstance(content, str):
+                message["content"] = [{"type": "text", "text": content}]
+
+        return messages
+
     def _encode_messages(
         self,
         messages: list[dict[str, Any]],
         tools: Optional[list[dict[str, Any]]],
         enable_thinking: Optional[bool],
     ) -> dict[str, Any]:
+        messages = self._normalize_message_content_schema(messages)
         input_ids, loss_mask, attention_mask, multi_modal_inputs = [], [], [], {}
         for i, message in enumerate(messages):
             _input_ids, _loss_mask, _attention_mask, _inputs = self._process_single_message(
