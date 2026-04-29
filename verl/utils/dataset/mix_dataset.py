@@ -286,6 +286,9 @@ class MixDataset(PretrainDatasetRowGroupLazy):
 
         keys_to_remove = []
         for k, v in multi_modal_inputs.items():
+            if k == "mm_token_type_ids":
+                keys_to_remove.append(k)
+                continue
             if len(v) > 0 and v[0] is not None and isinstance(v[0], torch.Tensor):
                 first_shape = v[0].shape[1:]
                 if not all(tensor.shape[1:] == first_shape for tensor in v):
