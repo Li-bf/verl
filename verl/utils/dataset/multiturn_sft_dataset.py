@@ -53,7 +53,7 @@ def _maybe_json_loads(value: Any) -> Any:
         return value
 
     try:
-        return json.loads(value)
+        return json.loads(stripped)
     except json.JSONDecodeError:
         return value
 
@@ -142,7 +142,7 @@ class MultiTurnSFTDataset(Dataset):
     Dataset for multi-turn conversations where each assistant response should be trained
 
     Args:
-        data_files (str or list): Path(s) to Parquet file(s).
+        data_files (str or list): Path(s) to Parquet/JSONL file(s).
         tokenizer (PreTrainedTokenizer): For the tokenization of text to token IDs.
         config (DictConfig): Options like cache_dir, prompt_key, max_prompt_length, truncation, etc.
         processor (ProcessorMixin, optional): Multimodal preprocessor for images/videos.
@@ -201,24 +201,24 @@ class MultiTurnSFTDataset(Dataset):
             self.parquet_files[i] = copy_local_path_from_hdfs(parquet_file, verbose=True)
 
     def _read_files_and_process(self):
-        def series_to_item(ls):
-            import numpy
-            import pandas
-
-            while isinstance(ls, pandas.core.series.Series | numpy.ndarray) and len(ls) == 1:
-                ls = ls[0]
-            return ls
-
-        dataframes = []
+        self.data_list = []
         for parquet_file in self.parquet_files:
-            # default loader loads some list as np.ndarray, which fails the tokenizer
-            dataframe = pd.read_parquet(parquet_file, dtype_backend="pyarrow")
-            dataframes.append(dataframe)
-        self.dataframe = pd.concat(dataframes)
-        self.dataframe = self.maybe_filter_out_long_prompts(self.dataframe)
+            if parquet_file.endswith(".jsonl"):
+                with open(parquet_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            self.data_list.append(json.loads(line))
+            else:
+                # default loader loads some list as np.ndarray, which fails the tokenizer
+                dataframe = pd.read_parquet(parquet_file, dtype_backend="pyarrow")
+                self.data_list.extend(dataframe.to_dict(orient="records"))
+        
+        # Filter long prompts first if needed
+        if self.filter_overlong_prompts:
+            self.data_list = self.maybe_filter_out_long_prompts(self.data_list)
 
-        total = len(self.dataframe)
-        print(f"dataset len: {len(self.dataframe)}")
+        total = len(self.data_list)
+        print(f"dataset len: {len(self.data_list)}")
 
         if self.max_samples > 0 and self.max_samples < total:
             if self.shuffle:
@@ -227,32 +227,29 @@ class MultiTurnSFTDataset(Dataset):
                 indices = rng.choice(total, size=self.max_samples, replace=False)
             else:
                 indices = np.arange(self.max_samples)
-            self.dataframe = self.dataframe.iloc[indices.tolist()]
+            self.data_list = [self.data_list[i] for i in indices]
             print(f"selected {self.max_samples} random samples out of {total}")
 
-        # Extract messages list from dataframe
-        self.messages = (
-            self.dataframe[self.messages_key]
-            .apply(convert_nested_value_to_list_recursive)
-            .apply(_normalize_message_tool_calls)
-            .tolist()
-        )
+        # Extract messages list
+        self.messages = []
+        for row in self.data_list:
+            msgs = convert_nested_value_to_list_recursive(row.get(self.messages_key, []))
+            msgs = _normalize_message_tool_calls(msgs)
+            self.messages.append(msgs)
 
-        # Extract tools list from dataframe
-        if self.tools_key in self.dataframe.columns:
-            self.tools = (
-                self.dataframe[self.tools_key]
-                .apply(convert_nested_value_to_list_recursive)
-                .apply(_normalize_tool_schemas)
-                .tolist()
-            )
-        else:
-            self.tools = None
-        # Extract enable_thinking list from dataframe
-        if self.enable_thinking_key in self.dataframe.columns:
-            self.enable_thinking = self.dataframe[self.enable_thinking_key].tolist()
-        else:
-            self.enable_thinking = None
+        # Extract tools list
+        self.tools = None
+        if len(self.data_list) > 0 and self.tools_key in self.data_list[0]:
+            self.tools = []
+            for row in self.data_list:
+                tls = convert_nested_value_to_list_recursive(row.get(self.tools_key, []))
+                tls = _normalize_tool_schemas(tls)
+                self.tools.append(tls)
+
+        # Extract enable_thinking list
+        self.enable_thinking = None
+        if len(self.data_list) > 0 and self.enable_thinking_key in self.data_list[0]:
+            self.enable_thinking = [row.get(self.enable_thinking_key, None) for row in self.data_list]
 
         # system prompt: <|im_start|>system\nYou are a helpful assistant.<|im_end|>\n
         # generation prompt: <|im_start|>assistant\n
@@ -435,7 +432,7 @@ class MultiTurnSFTDataset(Dataset):
         return messages
 
     def __getitem__(self, item):
-        row_dict: dict = self.dataframe.iloc[item].to_dict()
+        row_dict: dict = self.data_list[item]
         messages = self._build_messages(deepcopy(self.messages[item]), row_dict)
         tools = self.tools[item] if self.tools is not None else None
         enable_thinking = (
@@ -603,9 +600,9 @@ class MultiTurnSFTDataset(Dataset):
             else:
                 raise AssertionError(error_message)
 
-    def maybe_filter_out_long_prompts(self, df: pd.DataFrame) -> pd.DataFrame:
+    def maybe_filter_out_long_prompts(self, data_list: list[dict]) -> list[dict]:
         if not self.filter_overlong_prompts:
-            return df
+            return data_list
 
         processor = self.processor if self.processor is not None else self.tokenizer
         tok = self.tokenizer
@@ -616,12 +613,13 @@ class MultiTurnSFTDataset(Dataset):
         texts = []
         ok = []
         # Iterate with both messages and tools
-        for idx_row, row in df.iterrows():
+        for row in data_list:
             try:
-                messages = convert_nested_value_to_list_recursive(row[self.messages_key])
+                messages = convert_nested_value_to_list_recursive(row.get(self.messages_key, []))
+                messages = _normalize_message_tool_calls(messages)
                 tools = None
-                if self.tools_key in row and pd.notna(row[self.tools_key]):
-                    tools = convert_nested_value_to_list_recursive(row[self.tools_key])
+                if self.tools_key in row and row.get(self.tools_key) is not None:
+                    tools = convert_nested_value_to_list_recursive(row.get(self.tools_key, []))
                     tools = _normalize_tool_schemas(tools)
                 # Use verl's apply_chat_template with proper error handling
                 text = apply_chat_template(
@@ -644,7 +642,7 @@ class MultiTurnSFTDataset(Dataset):
         # Handle empty batch case
         if len(batch_texts) == 0:
             print("All samples failed apply_chat_template, skipping filtering")
-            return df
+            return data_list
 
         enc = tok(
             batch_texts,
@@ -658,10 +656,10 @@ class MultiTurnSFTDataset(Dataset):
         lengths = [len(x) for x in enc["input_ids"]]
         batch_mask = [L <= self.max_length for L in lengths]
 
-        mask = [False] * len(df)
+        filtered_data = []
         for j, i in enumerate(idx):
-            mask[i] = batch_mask[j]
+            if batch_mask[j]:
+                filtered_data.append(data_list[i])
 
-        filtered = df[mask].reset_index(drop=True)
-        print(f"filter dataset len: {len(filtered)} / {len(df)}")
-        return filtered
+        print(f"filter dataset len: {len(filtered_data)} / {len(data_list)}")
+        return filtered_data
