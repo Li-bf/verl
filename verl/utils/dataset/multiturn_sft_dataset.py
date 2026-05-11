@@ -381,7 +381,9 @@ class MultiTurnSFTDataset(Dataset):
 
         for message in messages:
             content = message.get("content")
-            if isinstance(content, str):
+            if content is None:
+                message["content"] = [{"type": "text", "text": ""}]
+            elif isinstance(content, str):
                 message["content"] = [{"type": "text", "text": content}]
 
         return messages
