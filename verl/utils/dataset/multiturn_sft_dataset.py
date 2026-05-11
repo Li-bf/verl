@@ -615,11 +615,19 @@ class MultiTurnSFTDataset(Dataset):
 
         texts = []
         ok = []
-        for v in df[self.messages_key].tolist():
+        # Iterate with both messages and tools
+        for idx_row, row in df.iterrows():
             try:
-                messages = convert_nested_value_to_list_recursive(v)
-                text = processor.apply_chat_template(
+                messages = convert_nested_value_to_list_recursive(row[self.messages_key])
+                tools = None
+                if self.tools_key in row and pd.notna(row[self.tools_key]):
+                    tools = convert_nested_value_to_list_recursive(row[self.tools_key])
+                    tools = _normalize_tool_schemas(tools)
+                # Use verl's apply_chat_template with proper error handling
+                text = apply_chat_template(
+                    processor,
                     messages,
+                    tools=tools,
                     add_generation_prompt=True,
                     tokenize=False,
                     **apply_kwargs,
@@ -632,6 +640,11 @@ class MultiTurnSFTDataset(Dataset):
 
         idx = [i for i, flag in enumerate(ok) if flag]
         batch_texts = [texts[i] for i in idx]
+        
+        # Handle empty batch case
+        if len(batch_texts) == 0:
+            print("All samples failed apply_chat_template, skipping filtering")
+            return df
 
         enc = tok(
             batch_texts,
