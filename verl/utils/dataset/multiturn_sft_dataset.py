@@ -182,6 +182,7 @@ class MultiTurnSFTDataset(Dataset):
         self.seed = config.get("seed")
         self.max_samples = max_samples
         self.ignore_input_ids_mismatch = config.get("ignore_input_ids_mismatch", False)
+        self.use_loss_mask = config.get("use_loss_mask", False)
         assert self.truncation in ["error", "left", "right"]
 
         if not isinstance(parquet_files, list | ListConfig):
@@ -305,8 +306,8 @@ class MultiTurnSFTDataset(Dataset):
             input_ids = input_ids[len(self.system_prompt) :]
             attention_mask = attention_mask[len(self.system_prompt) :]
 
-        # Check if message has custom loss_mask (True/False)
-        if "loss_mask" in message:
+        # Only use custom loss_mask if use_loss_mask is enabled AND message has loss_mask key
+        if self.use_loss_mask and "loss_mask" in message:
             use_loss_mask = bool(message["loss_mask"])
             if use_loss_mask:
                 loss_mask = torch.ones_like(attention_mask)
@@ -378,8 +379,8 @@ class MultiTurnSFTDataset(Dataset):
             input_ids = input_ids[len(self.system_prompt) :]
             attention_mask = attention_mask[len(self.system_prompt) :]
 
-        # Check if message chunk has custom loss_mask (True/False)
-        if len(message_chunk) == 1 and "loss_mask" in message_chunk[0]:
+        # Only use custom loss_mask if use_loss_mask is enabled AND message has loss_mask key
+        if self.use_loss_mask and len(message_chunk) == 1 and "loss_mask" in message_chunk[0]:
             use_loss_mask = bool(message_chunk[0]["loss_mask"])
             if use_loss_mask:
                 loss_mask = torch.ones_like(attention_mask)
