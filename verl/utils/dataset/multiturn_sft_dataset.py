@@ -305,11 +305,23 @@ class MultiTurnSFTDataset(Dataset):
             input_ids = input_ids[len(self.system_prompt) :]
             attention_mask = attention_mask[len(self.system_prompt) :]
 
-        if message["role"] == "assistant":
+        # Check if message has custom loss_mask (True/False)
+        if "loss_mask" in message:
+            use_loss_mask = bool(message["loss_mask"])
+            if use_loss_mask:
+                loss_mask = torch.ones_like(attention_mask)
+                # For assistant messages, still mask out generation prompt
+                if message["role"] == "assistant":
+                    loss_mask[: len(self.generation_prompt)] = 0
+            else:
+                loss_mask = torch.zeros_like(attention_mask)
+        elif message["role"] == "assistant":
+            # Default behavior for assistant messages
             loss_mask = torch.ones_like(attention_mask)
             # mask out generation prompt if assistant message
             loss_mask[: len(self.generation_prompt)] = 0
         else:
+            # Default behavior for non-assistant messages
             loss_mask = torch.zeros_like(attention_mask)
 
         return input_ids, loss_mask, attention_mask, inputs
@@ -366,10 +378,22 @@ class MultiTurnSFTDataset(Dataset):
             input_ids = input_ids[len(self.system_prompt) :]
             attention_mask = attention_mask[len(self.system_prompt) :]
 
-        if len(message_chunk) == 1 and message_chunk[0]["role"] == "assistant":
+        # Check if message chunk has custom loss_mask (True/False)
+        if len(message_chunk) == 1 and "loss_mask" in message_chunk[0]:
+            use_loss_mask = bool(message_chunk[0]["loss_mask"])
+            if use_loss_mask:
+                loss_mask = torch.ones_like(attention_mask)
+                # For assistant messages, still mask out generation prompt
+                if message_chunk[0]["role"] == "assistant":
+                    loss_mask[: len(self.generation_prompt)] = 0
+            else:
+                loss_mask = torch.zeros_like(attention_mask)
+        elif len(message_chunk) == 1 and message_chunk[0]["role"] == "assistant":
+            # Default behavior for assistant messages
             loss_mask = torch.ones_like(attention_mask)
             loss_mask[: len(self.generation_prompt)] = 0
         else:
+            # Default behavior for non-assistant messages
             loss_mask = torch.zeros_like(attention_mask)
 
         return input_ids, loss_mask, attention_mask, inputs
