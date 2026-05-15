@@ -1,0 +1,105 @@
+verl/utils/dataset/rl_dataset.py
+  1c5a10aa1cec1a9d 172-173,175-177,181-200,202-203,205 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06dbd26a1cdf3907d219ad","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[172,173]},{"Range":[175,177]},{"Range":[181,200]},{"Range":[202,203]},{"Single":205}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "ee21fe6ecbc54f57bccf0c0ae0bcb71bc741729a",
+  "prompts": {
+    "1c5a10aa1cec1a9d": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a054f7f6ad2fb8e43a67d50",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "yangzhiwen <yangzhiwen@bytedance.com>",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 31,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {
+    "verl/utils/dataset/rl_dataset.py": [
+      {
+        "hash": "1c5a10aa1cec1a9d",
+        "line_ranges": [
+          {
+            "Range": [
+              172,
+              173
+            ]
+          },
+          {
+            "Range": [
+              175,
+              177
+            ]
+          },
+          {
+            "Range": [
+              181,
+              200
+            ]
+          },
+          {
+            "Range": [
+              202,
+              203
+            ]
+          },
+          {
+            "Single": 205
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06dbd26a1cdf3907d219ad",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  172,
+                  173
+                ]
+              },
+              {
+                "Range": [
+                  175,
+                  177
+                ]
+              },
+              {
+                "Range": [
+                  181,
+                  200
+                ]
+              },
+              {
+                "Range": [
+                  202,
+                  203
+                ]
+              },
+              {
+                "Single": 205
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "1c5a10aa1cec1a9d": {
+      "tool": "trae",
+      "conversation_id": "6a054f7f6ad2fb8e43a67d50",
+      "session_id": "6a054f7f6ad2fb8e43a67d50",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
