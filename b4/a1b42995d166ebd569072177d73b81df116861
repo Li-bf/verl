@@ -1,0 +1,420 @@
+verl/experimental/reward_loop/reward_manager/naive.py
+  a82cd50d93861892 329-333,339,343,345,347,351,353,357,359-363,618-624,627-630,633-647,650,654-656,660-665,667-670,676,693,734,753-755,758-788,790,792,794,799,805,810,816-822,824,835,842-865,953-970 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a019a223ca9252dd8f3fae8","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[329,333]},{"Single":339},{"Single":343},{"Single":345},{"Single":347},{"Single":351},{"Single":353},{"Single":357},{"Range":[359,363]},{"Range":[618,624]},{"Range":[627,630]},{"Range":[633,647]},{"Single":650},{"Range":[654,656]},{"Range":[660,665]},{"Range":[667,670]},{"Single":676},{"Single":693},{"Single":734},{"Range":[753,755]},{"Range":[758,788]},{"Single":790},{"Single":792},{"Single":794},{"Single":799},{"Single":805},{"Single":810},{"Range":[816,822]},{"Single":824},{"Single":835},{"Range":[842,865]},{"Range":[953,970]}]}]}
+ray_run_ppo.sh
+  3d5f7163e5368052 38-39,53-56,62-63,65-66,141-142 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a01893e3ca9252dd8f3fa23","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[38,39]},{"Range":[53,56]},{"Range":[62,63]},{"Range":[65,66]},{"Range":[141,142]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "b4a1b42995d166ebd569072177d73b81df116861",
+  "prompts": {
+    "3d5f7163e5368052": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a01495684bb075bae52b89d",
+        "model": "Doubao-Seed-2.0-Code__dev"
+      },
+      "human_author": "huangtiantian.ok <huangtiantian.ok@bytedance.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 6,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    },
+    "a82cd50d93861892": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a014bd384bb075bae52b8c9",
+        "model": "Doubao-Seed-2.0-Code__dev"
+      },
+      "human_author": "huangtiantian.ok <huangtiantian.ok@bytedance.com>",
+      "messages": [],
+      "total_additions": 273,
+      "total_deletions": 212,
+      "accepted_lines": 152,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {
+    "ray_run_ppo.sh": [
+      {
+        "hash": "3d5f7163e5368052",
+        "line_ranges": [
+          {
+            "Range": [
+              38,
+              39
+            ]
+          },
+          {
+            "Range": [
+              53,
+              56
+            ]
+          },
+          {
+            "Range": [
+              62,
+              63
+            ]
+          },
+          {
+            "Range": [
+              65,
+              66
+            ]
+          },
+          {
+            "Range": [
+              141,
+              142
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a01893e3ca9252dd8f3fa23",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  38,
+                  39
+                ]
+              },
+              {
+                "Range": [
+                  53,
+                  56
+                ]
+              },
+              {
+                "Range": [
+                  62,
+                  63
+                ]
+              },
+              {
+                "Range": [
+                  65,
+                  66
+                ]
+              },
+              {
+                "Range": [
+                  141,
+                  142
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "verl/experimental/reward_loop/reward_manager/naive.py": [
+      {
+        "hash": "a82cd50d93861892",
+        "line_ranges": [
+          {
+            "Range": [
+              329,
+              333
+            ]
+          },
+          {
+            "Single": 339
+          },
+          {
+            "Single": 343
+          },
+          {
+            "Single": 345
+          },
+          {
+            "Single": 347
+          },
+          {
+            "Single": 351
+          },
+          {
+            "Single": 353
+          },
+          {
+            "Single": 357
+          },
+          {
+            "Range": [
+              359,
+              363
+            ]
+          },
+          {
+            "Range": [
+              618,
+              624
+            ]
+          },
+          {
+            "Range": [
+              627,
+              630
+            ]
+          },
+          {
+            "Range": [
+              633,
+              647
+            ]
+          },
+          {
+            "Single": 650
+          },
+          {
+            "Range": [
+              654,
+              656
+            ]
+          },
+          {
+            "Range": [
+              660,
+              665
+            ]
+          },
+          {
+            "Range": [
+              667,
+              670
+            ]
+          },
+          {
+            "Single": 676
+          },
+          {
+            "Single": 693
+          },
+          {
+            "Single": 734
+          },
+          {
+            "Range": [
+              753,
+              755
+            ]
+          },
+          {
+            "Range": [
+              758,
+              788
+            ]
+          },
+          {
+            "Single": 790
+          },
+          {
+            "Single": 792
+          },
+          {
+            "Single": 794
+          },
+          {
+            "Single": 799
+          },
+          {
+            "Single": 805
+          },
+          {
+            "Single": 810
+          },
+          {
+            "Range": [
+              816,
+              822
+            ]
+          },
+          {
+            "Single": 824
+          },
+          {
+            "Single": 835
+          },
+          {
+            "Range": [
+              842,
+              865
+            ]
+          },
+          {
+            "Range": [
+              953,
+              970
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a019a223ca9252dd8f3fae8",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  329,
+                  333
+                ]
+              },
+              {
+                "Single": 339
+              },
+              {
+                "Single": 343
+              },
+              {
+                "Single": 345
+              },
+              {
+                "Single": 347
+              },
+              {
+                "Single": 351
+              },
+              {
+                "Single": 353
+              },
+              {
+                "Single": 357
+              },
+              {
+                "Range": [
+                  359,
+                  363
+                ]
+              },
+              {
+                "Range": [
+                  618,
+                  624
+                ]
+              },
+              {
+                "Range": [
+                  627,
+                  630
+                ]
+              },
+              {
+                "Range": [
+                  633,
+                  647
+                ]
+              },
+              {
+                "Single": 650
+              },
+              {
+                "Range": [
+                  654,
+                  656
+                ]
+              },
+              {
+                "Range": [
+                  660,
+                  665
+                ]
+              },
+              {
+                "Range": [
+                  667,
+                  670
+                ]
+              },
+              {
+                "Single": 676
+              },
+              {
+                "Single": 693
+              },
+              {
+                "Single": 734
+              },
+              {
+                "Range": [
+                  753,
+                  755
+                ]
+              },
+              {
+                "Range": [
+                  758,
+                  788
+                ]
+              },
+              {
+                "Single": 790
+              },
+              {
+                "Single": 792
+              },
+              {
+                "Single": 794
+              },
+              {
+                "Single": 799
+              },
+              {
+                "Single": 805
+              },
+              {
+                "Single": 810
+              },
+              {
+                "Range": [
+                  816,
+                  822
+                ]
+              },
+              {
+                "Single": 824
+              },
+              {
+                "Single": 835
+              },
+              {
+                "Range": [
+                  842,
+                  865
+                ]
+              },
+              {
+                "Range": [
+                  953,
+                  970
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "3d5f7163e5368052": {
+      "tool": "trae",
+      "conversation_id": "6a01495684bb075bae52b89d",
+      "session_id": "6a01495684bb075bae52b89d",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "a82cd50d93861892": {
+      "tool": "trae",
+      "conversation_id": "6a014bd384bb075bae52b8c9",
+      "session_id": "6a014bd384bb075bae52b8c9",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}

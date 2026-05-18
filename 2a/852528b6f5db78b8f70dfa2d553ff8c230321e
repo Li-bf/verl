@@ -1,0 +1,23 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "2a852528b6f5db78b8f70dfa2d553ff8c230321e",
+  "prompts": {
+    "28984a7efcf59907": {
+      "agent_id": {
+        "tool": "trae-cue",
+        "id": "ai_tab-202605162330415532F10CDBFC412A6D12",
+        "model": "default"
+      },
+      "human_author": "yangzhiwen <yangzhiwen@bytedance.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 0,
+      "overriden_lines": 1
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
