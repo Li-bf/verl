@@ -1,0 +1,250 @@
+verl/utils/dataset/rl_dataset.py
+  5a9110225993d5e8 400-411 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0d9aad33f5019141a89c88","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[400,411]}]}]}
+examples/reward_function/rlcr.py
+  5a9110225993d5e8 195,199-201,204-210,216-223,233-242,459-464,489-516,531-532,549-550,957,965,1108-1147,1282-1290,1293,1299-1313,1339-1343 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0d9aad33f5019141a89c88","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Single":195},{"Range":[199,201]},{"Range":[204,210]},{"Range":[216,223]},{"Range":[233,242]},{"Range":[459,464]},{"Range":[489,516]},{"Range":[531,532]},{"Range":[549,550]},{"Single":957},{"Single":965},{"Range":[1108,1147]},{"Range":[1282,1290]},{"Single":1293},{"Range":[1299,1313]},{"Range":[1339,1343]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "3bb6a6f3abf607d74c87fa8ec9be761d0ec8c262",
+  "prompts": {
+    "5a9110225993d5e8": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a08a5f3f2abb84ec7ae0594",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "yangzhiwen <yangzhiwen@bytedance.com>",
+      "messages": [],
+      "total_additions": 151,
+      "total_deletions": 22,
+      "accepted_lines": 151,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {
+    "examples/reward_function/rlcr.py": [
+      {
+        "hash": "5a9110225993d5e8",
+        "line_ranges": [
+          {
+            "Single": 195
+          },
+          {
+            "Range": [
+              199,
+              201
+            ]
+          },
+          {
+            "Range": [
+              204,
+              210
+            ]
+          },
+          {
+            "Range": [
+              216,
+              223
+            ]
+          },
+          {
+            "Range": [
+              233,
+              242
+            ]
+          },
+          {
+            "Range": [
+              459,
+              464
+            ]
+          },
+          {
+            "Range": [
+              489,
+              516
+            ]
+          },
+          {
+            "Range": [
+              531,
+              532
+            ]
+          },
+          {
+            "Range": [
+              549,
+              550
+            ]
+          },
+          {
+            "Single": 957
+          },
+          {
+            "Single": 965
+          },
+          {
+            "Range": [
+              1108,
+              1147
+            ]
+          },
+          {
+            "Range": [
+              1282,
+              1290
+            ]
+          },
+          {
+            "Single": 1293
+          },
+          {
+            "Range": [
+              1299,
+              1313
+            ]
+          },
+          {
+            "Range": [
+              1339,
+              1343
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0d9aad33f5019141a89c88",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Single": 195
+              },
+              {
+                "Range": [
+                  199,
+                  201
+                ]
+              },
+              {
+                "Range": [
+                  204,
+                  210
+                ]
+              },
+              {
+                "Range": [
+                  216,
+                  223
+                ]
+              },
+              {
+                "Range": [
+                  233,
+                  242
+                ]
+              },
+              {
+                "Range": [
+                  459,
+                  464
+                ]
+              },
+              {
+                "Range": [
+                  489,
+                  516
+                ]
+              },
+              {
+                "Range": [
+                  531,
+                  532
+                ]
+              },
+              {
+                "Range": [
+                  549,
+                  550
+                ]
+              },
+              {
+                "Single": 957
+              },
+              {
+                "Single": 965
+              },
+              {
+                "Range": [
+                  1108,
+                  1147
+                ]
+              },
+              {
+                "Range": [
+                  1282,
+                  1290
+                ]
+              },
+              {
+                "Single": 1293
+              },
+              {
+                "Range": [
+                  1299,
+                  1313
+                ]
+              },
+              {
+                "Range": [
+                  1339,
+                  1343
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "verl/utils/dataset/rl_dataset.py": [
+      {
+        "hash": "5a9110225993d5e8",
+        "line_ranges": [
+          {
+            "Range": [
+              400,
+              411
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0d9aad33f5019141a89c88",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  400,
+                  411
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "5a9110225993d5e8": {
+      "tool": "trae",
+      "conversation_id": "6a08a5f3f2abb84ec7ae0594",
+      "session_id": "6a08a5f3f2abb84ec7ae0594",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
