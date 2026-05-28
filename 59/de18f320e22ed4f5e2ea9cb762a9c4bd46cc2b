@@ -1,0 +1,63 @@
+verl/workers/fsdp_workers.py
+  3cc05d5f5a317392 671-674 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a108f6e879b91c77e385ec5","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[671,674]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "59de18f320e22ed4f5e2ea9cb762a9c4bd46cc2b",
+  "prompts": {
+    "3cc05d5f5a317392": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a0dd53a33f5019141a89cd6",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "yangzhiwen <yangzhiwen@bytedance.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 2,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {
+    "verl/workers/fsdp_workers.py": [
+      {
+        "hash": "3cc05d5f5a317392",
+        "line_ranges": [
+          {
+            "Range": [
+              671,
+              674
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a108f6e879b91c77e385ec5",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  671,
+                  674
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "3cc05d5f5a317392": {
+      "tool": "trae",
+      "conversation_id": "6a0dd53a33f5019141a89cd6",
+      "session_id": "6a0dd53a33f5019141a89cd6",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
