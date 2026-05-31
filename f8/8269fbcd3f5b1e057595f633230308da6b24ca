@@ -1,0 +1,31 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f88269fbcd3f5b1e057595f633230308da6b24ca",
+  "prompts": {
+    "96b4c06bc096e6d2": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a19589f36b70b79045c05a3",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "yangzhiwen <yangzhiwen@bytedance.com>",
+      "messages": [],
+      "total_additions": 153,
+      "total_deletions": 1,
+      "accepted_lines": 153,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {
+    "96b4c06bc096e6d2": {
+      "tool": "trae",
+      "conversation_id": "6a19589f36b70b79045c05a3",
+      "session_id": "6a19589f36b70b79045c05a3",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}

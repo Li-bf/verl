@@ -1,0 +1,83 @@
+scripts/offline_rubric_infer.py
+  b59ccf09bd25003f 1-233 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a18ffc1d03f2949294ff096","tool_type":"agent","tool_id":"apply_patch","line_ranges":[{"Range":[1,233]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "8b2163a411b167044eef7361a196ea001ad573a2",
+  "prompts": {
+    "519a1e577a96bbcc": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a100f11bec75f0e27a6849f",
+        "model": "gpt-5.4__dev"
+      },
+      "human_author": "yangzhiwen <yangzhiwen@bytedance.com>",
+      "messages": [],
+      "total_additions": 283,
+      "total_deletions": 176,
+      "accepted_lines": 129,
+      "overriden_lines": 72
+    },
+    "b59ccf09bd25003f": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a18fe89d03f2949294ff00e",
+        "model": "gpt-5.5__dev"
+      },
+      "human_author": "yangzhiwen <yangzhiwen@bytedance.com>",
+      "messages": [],
+      "total_additions": 233,
+      "total_deletions": 0,
+      "accepted_lines": 233,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {
+    "scripts/offline_rubric_infer.py": [
+      {
+        "hash": "b59ccf09bd25003f",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              233
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a18ffc1d03f2949294ff096",
+            "tool_type": "agent",
+            "tool_id": "apply_patch",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  233
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "519a1e577a96bbcc": {
+      "tool": "trae",
+      "conversation_id": "6a100f11bec75f0e27a6849f",
+      "session_id": "6a100f11bec75f0e27a6849f",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "b59ccf09bd25003f": {
+      "tool": "trae",
+      "conversation_id": "6a18fe89d03f2949294ff00e",
+      "session_id": "6a18fe89d03f2949294ff00e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
