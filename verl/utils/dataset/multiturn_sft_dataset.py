@@ -193,6 +193,8 @@ class MultiTurnSFTDataset(Dataset):
             tokenizer = hf_tokenizer(tokenizer)
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.processor = processor
+        # Filtering uses the same per-chunk tokenization path as __getitem__.
+        self.system_prompt, self.generation_prompt = extract_system_prompt_and_generation(self.tokenizer)
 
         self._download()
         self._read_files_and_process()
@@ -252,12 +254,36 @@ class MultiTurnSFTDataset(Dataset):
         if len(self.data_list) > 0 and self.enable_thinking_key in self.data_list[0]:
             self.enable_thinking = [row.get(self.enable_thinking_key, None) for row in self.data_list]
 
-        # system prompt: <|im_start|>system\nYou are a helpful assistant.<|im_end|>\n
-        # generation prompt: <|im_start|>assistant\n
-        self.system_prompt, self.generation_prompt = extract_system_prompt_and_generation(self.tokenizer)
-
     def __len__(self):
         return len(self.messages)
+
+    def _get_example_sequence_length(self, example: dict[str, Any]) -> int:
+        messages = convert_nested_value_to_list_recursive(example.get(self.messages_key, []))
+        messages = _normalize_message_tool_calls(messages)
+        messages = self._build_messages(messages, example)
+
+        tools = None
+        if self.tools_key in example and example.get(self.tools_key) is not None:
+            tools = convert_nested_value_to_list_recursive(example.get(self.tools_key, []))
+            tools = _normalize_tool_schemas(tools)
+
+        enable_thinking = example.get(self.enable_thinking_key, self.enable_thinking_default)
+        if enable_thinking is not None:
+            enable_thinking = bool(enable_thinking)
+
+        sequence_length = 0
+        message_chunks = self._group_messages_for_template(messages)
+        for i, message_chunk in enumerate(message_chunks):
+            input_ids, _, _, _ = self._process_message_chunk(
+                chunk_index=i,
+                message_chunk=message_chunk,
+                full_message=messages,
+                tools=tools if i == 0 else None,
+                enable_thinking=enable_thinking,
+            )
+            sequence_length += input_ids.shape[0]
+
+        return int(sequence_length)
 
     def _process_single_message(
         self,
@@ -631,62 +657,27 @@ class MultiTurnSFTDataset(Dataset):
         if not self.filter_overlong_prompts:
             return data_list
 
-        processor = self.processor if self.processor is not None else self.tokenizer
-        tok = self.tokenizer
-
-        apply_kwargs = dict(**self.apply_chat_template_kwargs)
-        os.environ.setdefault("TOKENIZERS_PARALLELISM", "true")
-
-        texts = []
-        ok = []
-        # Iterate with both messages and tools
-        for row in data_list:
-            try:
-                messages = convert_nested_value_to_list_recursive(row.get(self.messages_key, []))
-                messages = _normalize_message_tool_calls(messages)
-                tools = None
-                if self.tools_key in row and row.get(self.tools_key) is not None:
-                    tools = convert_nested_value_to_list_recursive(row.get(self.tools_key, []))
-                    tools = _normalize_tool_schemas(tools)
-                # Use verl's apply_chat_template with proper error handling
-                text = apply_chat_template(
-                    processor,
-                    messages,
-                    tools=tools,
-                    add_generation_prompt=True,
-                    tokenize=False,
-                    **apply_kwargs,
-                )
-                texts.append(text)
-                ok.append(True)
-            except Exception:
-                texts.append("")
-                ok.append(False)
-
-        idx = [i for i, flag in enumerate(ok) if flag]
-        batch_texts = [texts[i] for i in idx]
-        
-        # Handle empty batch case
-        if len(batch_texts) == 0:
-            print("All samples failed apply_chat_template, skipping filtering")
-            return data_list
-
-        enc = tok(
-            batch_texts,
-            add_special_tokens=False,
-            truncation=True,
-            max_length=self.max_length + 1,
-            padding=False,
-            return_attention_mask=False,
-        )
-
-        lengths = [len(x) for x in enc["input_ids"]]
-        batch_mask = [L <= self.max_length for L in lengths]
-
         filtered_data = []
-        for j, i in enumerate(idx):
-            if batch_mask[j]:
-                filtered_data.append(data_list[i])
+        dropped = 0
+        for idx, row in enumerate(data_list):
+            try:
+                sequence_length = self._get_example_sequence_length(row)
+            except Exception:
+                logger.exception("Failed to compute sequence length for sample %s, dropping it during pre-filtering", idx)
+                dropped += 1
+                continue
+
+            if sequence_length <= self.max_length:
+                filtered_data.append(row)
+            else:
+                dropped += 1
+
+        if dropped > 0:
+            logger.info(
+                "Filtered %s overlong samples whose assembled sequence exceeds max_length=%s",
+                dropped,
+                self.max_length,
+            )
 
         print(f"filter dataset len: {len(filtered_data)} / {len(data_list)}")
         return filtered_data
