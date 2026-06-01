@@ -1,0 +1,418 @@
+verl/trainer/config/distillation/distillation.yaml
+  d5adc752c2155190 113-135 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a182f9e37350d96b0b514db","tool_type":"agent","tool_id":"SearchReplace","line_ranges":[{"Range":[113,135]}]}]}
+verl/trainer/config/_generated_ppo_torchtitan_trainer.yaml
+  d5adc752c2155190 811-813 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a182f9e37350d96b0b514db","tool_type":"agent","tool_id":"SearchReplace","line_ranges":[{"Range":[811,813]}]}]}
+verl/trainer/config/_generated_ppo_veomni_trainer.yaml
+  d5adc752c2155190 816-818 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a182f9e37350d96b0b514db","tool_type":"agent","tool_id":"SearchReplace","line_ranges":[{"Range":[816,818]}]}]}
+verl/trainer/config/_generated_ppo_trainer.yaml
+  d5adc752c2155190 831-833 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a182f9e37350d96b0b514db","tool_type":"agent","tool_id":"SearchReplace","line_ranges":[{"Range":[831,833]}]}]}
+verl/experimental/teacher_loop/teacher_manager.py
+  d5adc752c2155190 14,73,88-96,113-158,165-167,169-184,189-208,211,220-239 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a182f9e37350d96b0b514db","tool_type":"agent","tool_id":"SearchReplace","line_ranges":[{"Single":14},{"Single":73},{"Range":[88,96]},{"Range":[113,158]},{"Range":[165,167]},{"Range":[169,184]},{"Range":[189,208]},{"Single":211},{"Range":[220,239]}]}]}
+verl/experimental/agent_loop/agent_loop.py
+  d5adc752c2155190 428-429,431,436,438-439,925-943,949-951 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a182f9e37350d96b0b514db","tool_type":"agent","tool_id":"SearchReplace","line_ranges":[{"Range":[428,429]},{"Single":431},{"Single":436},{"Range":[438,439]},{"Range":[925,943]},{"Range":[949,951]}]}]}
+verl/workers/config/distillation.py
+  d5adc752c2155190 257-271,276-280 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a182f9e37350d96b0b514db","tool_type":"agent","tool_id":"SearchReplace","line_ranges":[{"Range":[257,271]},{"Range":[276,280]}]}]}
+verl/trainer/config/_generated_ppo_megatron_trainer.yaml
+  d5adc752c2155190 878-880 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a182f9e37350d96b0b514db","tool_type":"agent","tool_id":"SearchReplace","line_ranges":[{"Range":[878,880]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f021cf76da407ef021d6b42f8a4a987a279bc3fe",
+  "prompts": {
+    "d5adc752c2155190": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a180aec37350d96b0b513d1",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "zhengce.zc <zhengce.zc@bytedance.com>",
+      "messages": [],
+      "total_additions": 201,
+      "total_deletions": 6,
+      "accepted_lines": 201,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {
+    "verl/experimental/agent_loop/agent_loop.py": [
+      {
+        "hash": "d5adc752c2155190",
+        "line_ranges": [
+          {
+            "Range": [
+              428,
+              429
+            ]
+          },
+          {
+            "Single": 431
+          },
+          {
+            "Single": 436
+          },
+          {
+            "Range": [
+              438,
+              439
+            ]
+          },
+          {
+            "Range": [
+              925,
+              943
+            ]
+          },
+          {
+            "Range": [
+              949,
+              951
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a182f9e37350d96b0b514db",
+            "tool_type": "agent",
+            "tool_id": "SearchReplace",
+            "line_ranges": [
+              {
+                "Range": [
+                  428,
+                  429
+                ]
+              },
+              {
+                "Single": 431
+              },
+              {
+                "Single": 436
+              },
+              {
+                "Range": [
+                  438,
+                  439
+                ]
+              },
+              {
+                "Range": [
+                  925,
+                  943
+                ]
+              },
+              {
+                "Range": [
+                  949,
+                  951
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "verl/experimental/teacher_loop/teacher_manager.py": [
+      {
+        "hash": "d5adc752c2155190",
+        "line_ranges": [
+          {
+            "Single": 14
+          },
+          {
+            "Single": 73
+          },
+          {
+            "Range": [
+              88,
+              96
+            ]
+          },
+          {
+            "Range": [
+              113,
+              158
+            ]
+          },
+          {
+            "Range": [
+              165,
+              167
+            ]
+          },
+          {
+            "Range": [
+              169,
+              184
+            ]
+          },
+          {
+            "Range": [
+              189,
+              208
+            ]
+          },
+          {
+            "Single": 211
+          },
+          {
+            "Range": [
+              220,
+              239
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a182f9e37350d96b0b514db",
+            "tool_type": "agent",
+            "tool_id": "SearchReplace",
+            "line_ranges": [
+              {
+                "Single": 14
+              },
+              {
+                "Single": 73
+              },
+              {
+                "Range": [
+                  88,
+                  96
+                ]
+              },
+              {
+                "Range": [
+                  113,
+                  158
+                ]
+              },
+              {
+                "Range": [
+                  165,
+                  167
+                ]
+              },
+              {
+                "Range": [
+                  169,
+                  184
+                ]
+              },
+              {
+                "Range": [
+                  189,
+                  208
+                ]
+              },
+              {
+                "Single": 211
+              },
+              {
+                "Range": [
+                  220,
+                  239
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "verl/trainer/config/_generated_ppo_megatron_trainer.yaml": [
+      {
+        "hash": "d5adc752c2155190",
+        "line_ranges": [
+          {
+            "Range": [
+              878,
+              880
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a182f9e37350d96b0b514db",
+            "tool_type": "agent",
+            "tool_id": "SearchReplace",
+            "line_ranges": [
+              {
+                "Range": [
+                  878,
+                  880
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "verl/trainer/config/_generated_ppo_torchtitan_trainer.yaml": [
+      {
+        "hash": "d5adc752c2155190",
+        "line_ranges": [
+          {
+            "Range": [
+              811,
+              813
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a182f9e37350d96b0b514db",
+            "tool_type": "agent",
+            "tool_id": "SearchReplace",
+            "line_ranges": [
+              {
+                "Range": [
+                  811,
+                  813
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "verl/trainer/config/_generated_ppo_trainer.yaml": [
+      {
+        "hash": "d5adc752c2155190",
+        "line_ranges": [
+          {
+            "Range": [
+              831,
+              833
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a182f9e37350d96b0b514db",
+            "tool_type": "agent",
+            "tool_id": "SearchReplace",
+            "line_ranges": [
+              {
+                "Range": [
+                  831,
+                  833
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "verl/trainer/config/_generated_ppo_veomni_trainer.yaml": [
+      {
+        "hash": "d5adc752c2155190",
+        "line_ranges": [
+          {
+            "Range": [
+              816,
+              818
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a182f9e37350d96b0b514db",
+            "tool_type": "agent",
+            "tool_id": "SearchReplace",
+            "line_ranges": [
+              {
+                "Range": [
+                  816,
+                  818
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "verl/trainer/config/distillation/distillation.yaml": [
+      {
+        "hash": "d5adc752c2155190",
+        "line_ranges": [
+          {
+            "Range": [
+              113,
+              135
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a182f9e37350d96b0b514db",
+            "tool_type": "agent",
+            "tool_id": "SearchReplace",
+            "line_ranges": [
+              {
+                "Range": [
+                  113,
+                  135
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "verl/workers/config/distillation.py": [
+      {
+        "hash": "d5adc752c2155190",
+        "line_ranges": [
+          {
+            "Range": [
+              257,
+              271
+            ]
+          },
+          {
+            "Range": [
+              276,
+              280
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a182f9e37350d96b0b514db",
+            "tool_type": "agent",
+            "tool_id": "SearchReplace",
+            "line_ranges": [
+              {
+                "Range": [
+                  257,
+                  271
+                ]
+              },
+              {
+                "Range": [
+                  276,
+                  280
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "d5adc752c2155190": {
+      "tool": "trae",
+      "conversation_id": "6a180aec37350d96b0b513d1",
+      "session_id": "6a180aec37350d96b0b513d1",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
